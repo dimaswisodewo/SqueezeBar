@@ -79,6 +79,34 @@ class MainViewModel: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
 
+            // Prevent interrupting active compression
+            if self.isCompressing {
+                self.statusMessage = "Please wait for current compression to finish"
+                return
+            }
+
+            // Validate file size to prevent memory issues
+            if let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey]),
+               let size = resourceValues.fileSize,
+               let contentType = resourceValues.contentType {
+
+                let maxSize: Int64
+                if contentType.conforms(to: .video) {
+                    maxSize = 10 * 1024 * 1024 * 1024 // 10GB for videos
+                } else if contentType.conforms(to: .pdf) {
+                    maxSize = 1 * 1024 * 1024 * 1024 // 1GB for PDFs
+                } else {
+                    maxSize = 500 * 1024 * 1024 // 500MB for images
+                }
+
+                if Int64(size) > maxSize {
+                    let sizeMB = Double(size) / (1024 * 1024)
+                    let maxMB = Double(maxSize) / (1024 * 1024)
+                    self.errorMessage = String(format: "File too large: %.0fMB. Maximum: %.0fMB", sizeMB, maxMB)
+                    return
+                }
+            }
+
             self.droppedFileURL = url
             self.statusMessage = ""
             self.errorMessage = nil
