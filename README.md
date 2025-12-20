@@ -1,5 +1,9 @@
 # SqueezeBar
 
+<p align="center">
+  <img src="SqueezeBar.png" alt="SqueezeBar Logo" width="200">
+</p>
+
 A lightweight macOS menu bar application for quick and easy file compression. Drop files, compress them with customizable quality settings, and save disk space instantly.
 
 ![macOS](https://img.shields.io/badge/macOS-12.0+-blue.svg)
@@ -64,7 +68,7 @@ open SqueezeBar.xcodeproj
 
 ### App Store
 
-Coming soon!
+https://apps.apple.com/id/app/squeezebar/id6756598443?mt=12
 
 ## Usage
 
