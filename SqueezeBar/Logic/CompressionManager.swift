@@ -31,9 +31,10 @@ class CompressionManager {
     ///   - inputURL: The URL of the file to compress
     ///   - outputFolder: The folder where the compressed file should be saved
     ///   - quality: Quality factor between 0.0 and 1.0
+    ///   - targetFramerate: Optional target framerate for video files (nil maintains original)
     /// - Returns: CompressionResult containing details about the compression
     /// - Throws: CompressionError if compression fails
-    func compress(inputURL: URL, outputFolder: URL, quality: Double) async throws -> CompressionResult {
+    func compress(inputURL: URL, outputFolder: URL, quality: Double, targetFramerate: Double? = nil) async throws -> CompressionResult {
         // Validate quality
         guard quality >= 0.0 && quality <= 1.0 else {
             throw CompressionError.invalidQuality
@@ -69,7 +70,8 @@ class CompressionManager {
         return try await selectedStrategy.compress(
             inputURL: inputURL,
             outputURL: outputURL,
-            quality: quality
+            quality: quality,
+            targetFramerate: targetFramerate
         )
     }
 

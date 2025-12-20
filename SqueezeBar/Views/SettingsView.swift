@@ -10,6 +10,7 @@ import AppKit
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
+    @ObservedObject private var viewModel = MainViewModel.shared
 
     // Local state to prevent publishing changes during view updates
     @State private var compressionMode: CompressionMode
@@ -17,6 +18,8 @@ struct SettingsView: View {
     @State private var customQuality: Double
     @State private var targetSizeMB: Double
     @State private var compressionPercentage: Double
+    @State private var enableFramerateReduction: Bool
+    @State private var selectedFramerate: Double
 
     init(settings: AppSettings) {
         self.settings = settings
@@ -26,6 +29,8 @@ struct SettingsView: View {
         _customQuality = State(initialValue: settings.customQuality)
         _targetSizeMB = State(initialValue: settings.targetSizeMB)
         _compressionPercentage = State(initialValue: settings.compressionPercentage)
+        _enableFramerateReduction = State(initialValue: settings.enableFramerateReduction)
+        _selectedFramerate = State(initialValue: settings.targetFramerate ?? 30.0)
     }
 
     var body: some View {
@@ -43,6 +48,7 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
+                .disabled(viewModel.isCompressing)
                 .onChange(of: compressionMode) { newValue in
                     // Update settings asynchronously to avoid publishing during view updates
                     DispatchQueue.main.async {
@@ -64,8 +70,22 @@ struct SettingsView: View {
             Divider()
                 .padding(.vertical, DesignTokens.Spacing.xs)
 
+            // Video Framerate Controls - Only show for video files
+            if viewModel.isCurrentFileVideo {
+                framerateSection
+
+                Divider()
+                    .padding(.vertical, DesignTokens.Spacing.xs)
+            }
+
             // Output Folder Selection
             outputFolderSection
+        }
+        .onChange(of: viewModel.isCompressing) { newValue in
+            // Remove attached file on compression done
+            if !newValue {
+                viewModel.removeAttachedFile()
+            }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -80,6 +100,7 @@ struct SettingsView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
+            .disabled(viewModel.isCompressing)
             .onChange(of: compressionQuality) { newValue in
                 // Update settings asynchronously to avoid publishing during view updates
                 DispatchQueue.main.async {
@@ -105,6 +126,7 @@ struct SettingsView: View {
 
                     Slider(value: $customQuality, in: 0.1...1.0, step: 0.05)
                         .accentColor(DesignTokens.primaryAccent)
+                        .disabled(viewModel.isCompressing)
                         .onChange(of: customQuality) { newValue in
                             // Update settings asynchronously
                             DispatchQueue.main.async {
@@ -130,6 +152,7 @@ struct SettingsView: View {
 
             Slider(value: $targetSizeMB, in: 0.5...50.0, step: 0.5)
                 .accentColor(DesignTokens.primaryAccent)
+                .disabled(viewModel.isCompressing)
                 .onChange(of: targetSizeMB) { newValue in
                     // Update settings asynchronously
                     DispatchQueue.main.async {
@@ -157,6 +180,7 @@ struct SettingsView: View {
 
             Slider(value: $compressionPercentage, in: 10...90, step: 5)
                 .accentColor(DesignTokens.primaryAccent)
+                .disabled(viewModel.isCompressing)
                 .onChange(of: compressionPercentage) { newValue in
                     // Update settings asynchronously
                     DispatchQueue.main.async {
@@ -168,6 +192,71 @@ struct SettingsView: View {
                 .font(.caption2)
                 .foregroundColor(.secondary)
         }
+    }
+
+    private var framerateSection: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            Text("Frame Rate")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.primary)
+
+            Toggle("Reduce frame rate", isOn: $enableFramerateReduction)
+                .disabled(viewModel.isCompressing || !viewModel.isCurrentFileVideo)
+                .onChange(of: enableFramerateReduction) { newValue in
+                    DispatchQueue.main.async {
+                        settings.enableFramerateReduction = newValue
+                        if !newValue {
+                            // Reset to original when disabled
+                            settings.targetFramerate = nil
+                        }
+                        settings.saveFramerateSettings()
+                    }
+                }
+
+            if enableFramerateReduction && viewModel.isCurrentFileVideo {
+                HStack {
+                    Text("Target:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Picker("Framerate", selection: $selectedFramerate) {
+                        ForEach(availableFramerates, id: \.self) { fps in
+                            if let videoFPS = viewModel.videoFramerate, fps == Double(videoFPS) {
+                                Text("Original (\(Int(fps)) fps)")
+                                    .tag(fps)
+                            } else {
+                                Text("\(Int(fps)) fps")
+                                    .tag(fps)
+                            }
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .disabled(viewModel.isCompressing)
+                    .onChange(of: selectedFramerate) { newValue in
+                        DispatchQueue.main.async {
+                            settings.targetFramerate = newValue
+                            settings.saveFramerateSettings()
+                        }
+                    }
+                }
+
+                Text("ℹ️ Lower framerates reduce file size")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private var availableFramerates: [Double] {
+        guard let videoFPS = viewModel.videoFramerate else {
+            // Fallback if no video loaded
+            return [60, 48, 30, 24]
+        }
+
+        // Common framerates, filtered to those ≤ video's framerate
+        let allFramerates: [Double] = [144, 120, 60, 48, 30, 25, 24]
+
+        return allFramerates.filter { $0 <= Double(videoFPS) }.sorted(by: >)
     }
 
     private var outputFolderSection: some View {
@@ -196,6 +285,7 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.borderless)
                         .controlSize(.mini)
+                        .disabled(viewModel.isCompressing)
 
                         Button(action: selectOutputFolder) {
                             Text("Change")
@@ -203,6 +293,7 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.borderless)
                         .controlSize(.mini)
+                        .disabled(viewModel.isCompressing)
                     }
                     .padding(DesignTokens.Spacing.sm)
                     .background(DesignTokens.primaryAccent.opacity(0.1))
@@ -241,6 +332,7 @@ struct SettingsView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
+                    .disabled(viewModel.isCompressing)
                 }
             }
         }

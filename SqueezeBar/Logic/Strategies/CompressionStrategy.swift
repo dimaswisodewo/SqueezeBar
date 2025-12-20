@@ -18,9 +18,10 @@ protocol CompressionStrategy {
     ///   - inputURL: The URL of the file to compress
     ///   - outputURL: The URL where the compressed file should be saved
     ///   - quality: Quality factor between 0.0 (lowest) and 1.0 (highest)
+    ///   - targetFramerate: Optional target framerate for video files (nil maintains original)
     /// - Returns: CompressionResult containing details about the compression
     /// - Throws: CompressionError if compression fails
-    func compress(inputURL: URL, outputURL: URL, quality: Double) async throws -> CompressionResult
+    func compress(inputURL: URL, outputURL: URL, quality: Double, targetFramerate: Double?) async throws -> CompressionResult
 }
 
 /// Errors that can occur during compression

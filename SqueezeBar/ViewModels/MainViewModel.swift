@@ -9,6 +9,7 @@ import Foundation
 import Combine
 import SwiftUI
 import UniformTypeIdentifiers
+import AVFoundation
 
 class MainViewModel: ObservableObject {
     // Singleton instance
@@ -22,6 +23,8 @@ class MainViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var fileTypeHint: String?
     @Published var fileSizeString: String?
+    @Published var isCurrentFileVideo = false
+    @Published var videoFramerate: Float?
 
     private let compressionManager = CompressionManager()
     private let byteFormatter: ByteCountFormatter = {
@@ -53,6 +56,24 @@ class MainViewModel: ObservableObject {
                     self.droppedFileURL = url
                     self.statusMessage = ""
                     self.errorMessage = nil
+
+                    // Detect if file is video
+                    if let resourceValues = try? url.resourceValues(forKeys: [.contentTypeKey]),
+                       let contentType = resourceValues.contentType {
+                        self.isCurrentFileVideo = contentType.conforms(to: .video) || contentType.conforms(to: .movie)
+
+                        // Extract video metadata if it's a video
+                        if self.isCurrentFileVideo {
+                            Task {
+                                await self.extractVideoMetadata(from: url)
+                            }
+                        } else {
+                            self.videoFramerate = nil
+                        }
+                    } else {
+                        self.isCurrentFileVideo = false
+                        self.videoFramerate = nil
+                    }
 
                     // Update file info
                     let ext = url.pathExtension.uppercased()
@@ -111,6 +132,24 @@ class MainViewModel: ObservableObject {
             self.statusMessage = ""
             self.errorMessage = nil
 
+            // Detect if file is video
+            if let resourceValues = try? url.resourceValues(forKeys: [.contentTypeKey]),
+               let contentType = resourceValues.contentType {
+                self.isCurrentFileVideo = contentType.conforms(to: .video) || contentType.conforms(to: .movie)
+
+                // Extract video metadata if it's a video
+                if self.isCurrentFileVideo {
+                    Task {
+                        await self.extractVideoMetadata(from: url)
+                    }
+                } else {
+                    self.videoFramerate = nil
+                }
+            } else {
+                self.isCurrentFileVideo = false
+                self.videoFramerate = nil
+            }
+
             // Update file info (same logic as handleDrop)
             let ext = url.pathExtension.uppercased()
             self.fileTypeHint = ext.isEmpty ? nil : ext
@@ -161,6 +200,28 @@ class MainViewModel: ObservableObject {
             self.errorMessage = nil
             self.fileTypeHint = nil
             self.fileSizeString = nil
+            self.isCurrentFileVideo = false
+            self.videoFramerate = nil
+        }
+    }
+
+    private func extractVideoMetadata(from url: URL) async {
+        let asset = AVAsset(url: url)
+
+        // Get video track
+        guard let videoTrack = try? await asset.loadTracks(withMediaType: .video).first else {
+            await MainActor.run {
+                self.videoFramerate = nil
+            }
+            return
+        }
+
+        // Get original framerate
+        let fps = try? await videoTrack.load(.nominalFrameRate)
+
+        await MainActor.run {
+            let rounded = floor(fps ?? 0)
+            self.videoFramerate = rounded > 0 ? rounded : nil
         }
     }
 
@@ -205,10 +266,14 @@ class MainViewModel: ObservableObject {
             // Calculate quality based on mode
             let quality = try calculateQuality(settings: settings, inputURL: inputURL)
 
+            // Get framerate setting
+            let targetFramerate = settings.effectiveFramerate
+
             let result = try await compressionManager.compress(
                 inputURL: inputURL,
                 outputFolder: outputFolder,
-                quality: quality
+                quality: quality,
+                targetFramerate: targetFramerate
             )
 
             await MainActor.run {
@@ -224,6 +289,8 @@ class MainViewModel: ObservableObject {
                 self.lastResult = nil
                 self.fileTypeHint = nil
                 self.fileSizeString = nil
+                self.isCurrentFileVideo = false
+                self.videoFramerate = nil
             }
         } catch {
             await MainActor.run {

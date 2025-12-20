@@ -70,21 +70,29 @@ struct DropZoneView: View {
                         .symbolRenderingMode(.palette)
                 }
                 .buttonStyle(.plain)
+                .disabled(viewModel.isCompressing)
                 .padding(12)
             }
         }
         .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
-            viewModel.handleDrop(providers: providers)
+            // Prevent dropping files during compression
+            if viewModel.isCompressing {
+                return false
+            }
+            return viewModel.handleDrop(providers: providers)
         }
         .onChange(of: isTargeted) { newValue in
             // Update viewModel.isDragging asynchronously to avoid publishing changes during view updates
             DispatchQueue.main.async {
-                viewModel.isDragging = newValue
+                // Don't update isDragging state if compressing
+                if !viewModel.isCompressing {
+                    viewModel.isDragging = newValue
+                }
             }
         }
         .onTapGesture {
-            // Only open file picker when not dragging and no file is selected
-            if !viewModel.isDragging && viewModel.droppedFileURL == nil {
+            // Only open file picker when not compressing, not dragging and no file is selected
+            if !viewModel.isCompressing && !viewModel.isDragging && viewModel.droppedFileURL == nil {
                 viewModel.openFilePicker()
             }
         }

@@ -33,6 +33,10 @@ class AppSettings: ObservableObject {
     @Published var targetSizeMB: Double = 5.0 // Target size in MB
     @Published var compressionPercentage: Double = 50.0 // Reduce by X%
 
+    // MARK: - Framerate Settings
+    @Published var enableFramerateReduction: Bool = false
+    @Published var targetFramerate: Double? = nil  // nil = use original
+
     /// Get the effective quality factor based on current settings
     var effectiveQuality: Double {
         if compressionMode == .quality && compressionQuality == .custom {
@@ -41,7 +45,15 @@ class AppSettings: ObservableObject {
         return compressionQuality.qualityFactor
     }
 
+    /// Get the effective framerate based on current settings
+    var effectiveFramerate: Double? {
+        return enableFramerateReduction ? targetFramerate : nil
+    }
+
     private static let bookmarkKey = "outputFolderBookmark"
+    private static let enableFramerateReductionKey = "enableFramerateReduction"
+    private static let targetFramerateKey = "targetFramerate"
+
     private var isAccessingSecurityScope = false {
         didSet {
             #if DEBUG
@@ -56,6 +68,7 @@ class AppSettings: ObservableObject {
 
     init() {
         loadOutputFolder()
+        loadFramerateSettings()
     }
 
     /// Save output folder as security-scoped bookmark
@@ -104,6 +117,28 @@ class AppSettings: ObservableObject {
             print("Failed to resolve bookmark: \(error.localizedDescription)")
             #endif
             UserDefaults.standard.removeObject(forKey: Self.bookmarkKey)
+        }
+    }
+
+    /// Load framerate settings from UserDefaults
+    private func loadFramerateSettings() {
+        enableFramerateReduction = UserDefaults.standard.bool(forKey: Self.enableFramerateReductionKey)
+
+        if UserDefaults.standard.object(forKey: Self.targetFramerateKey) != nil {
+            let savedTargetFramerate = UserDefaults.standard.double(forKey: Self.targetFramerateKey)
+            if savedTargetFramerate > 0 {
+                targetFramerate = savedTargetFramerate
+            }
+        }
+    }
+
+    /// Save framerate settings to UserDefaults
+    func saveFramerateSettings() {
+        UserDefaults.standard.set(enableFramerateReduction, forKey: Self.enableFramerateReductionKey)
+        if let fps = targetFramerate {
+            UserDefaults.standard.set(fps, forKey: Self.targetFramerateKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: Self.targetFramerateKey)
         }
     }
 

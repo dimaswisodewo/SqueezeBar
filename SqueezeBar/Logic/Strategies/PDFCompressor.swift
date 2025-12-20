@@ -16,7 +16,7 @@ class PDFCompressor: CompressionStrategy {
         [.pdf]
     }
 
-    func compress(inputURL: URL, outputURL: URL, quality: Double) async throws -> CompressionResult {
+    func compress(inputURL: URL, outputURL: URL, quality: Double, targetFramerate: Double? = nil) async throws -> CompressionResult {
         // Validate input file exists
         guard FileManager.default.fileExists(atPath: inputURL.path) else {
             throw CompressionError.fileNotFound
