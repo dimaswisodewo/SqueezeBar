@@ -217,7 +217,7 @@ class MainViewModel: ObservableObject {
             }
 
             // Reset dropped file after successful compression with optimized sleep
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
             await MainActor.run {
                 self.droppedFileURL = nil
                 self.statusMessage = ""
