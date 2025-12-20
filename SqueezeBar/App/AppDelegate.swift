@@ -21,10 +21,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let button = statusItem.button {
             // Use custom icon from xcassets as menu bar icon
-            if let image = NSImage(named: "AppIcon") {
+            if let image = NSImage(named: "SqueezeBar-macOS-Default") {
                 // Set proper size for menu bar (menu bar icons are typically 18-22pt)
-                image.size = NSSize(width: 18, height: 18)
-                image.isTemplate = true
+                image.size = NSSize(width: 22, height: 22)
                 button.image = image
             }
             button.action = #selector(togglePopover)

@@ -18,41 +18,47 @@ struct MainPopoverView: View {
 
             Divider()
 
-            // Drop Zone Section
-            VStack(spacing: DesignTokens.Spacing.lg) {
-                DropZoneView(viewModel: viewModel)
-                    .padding(.horizontal, DesignTokens.Spacing.lg)
+            // Scrollable content area
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Drop Zone Section
+                    VStack(spacing: DesignTokens.Spacing.lg) {
+                        DropZoneView(viewModel: viewModel)
+                            .padding(.horizontal, DesignTokens.Spacing.lg)
 
-                // File info
-                if let fileType = viewModel.fileTypeHint, let fileSize = viewModel.fileSizeString {
-                    fileInfoView(fileType: fileType, fileSize: fileSize)
-                }
+                        // File info
+                        if let fileType = viewModel.fileTypeHint, let fileSize = viewModel.fileSizeString {
+                            fileInfoView(fileType: fileType, fileSize: fileSize)
+                        }
 
-                // Status messages
-                if !viewModel.statusMessage.isEmpty || viewModel.errorMessage != nil {
-                    statusMessageView
-                        .padding(.horizontal, DesignTokens.Spacing.lg)
+                        // Status messages
+                        if !viewModel.statusMessage.isEmpty || viewModel.errorMessage != nil {
+                            statusMessageView
+                                .padding(.horizontal, DesignTokens.Spacing.lg)
+                        }
+                    }
+                    .padding(.vertical, DesignTokens.Spacing.md)
+
+                    Divider()
+
+                    // Settings Section
+                    SettingsView(settings: settings)
                 }
             }
-            .padding(.vertical, DesignTokens.Spacing.md)
-
-            Divider()
-
-            // Settings Section
-            SettingsView(settings: settings)
 
             Divider()
 
             // Compress Button
             compressButtonView
         }
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(width: 400, height: 560)
     }
 
     private var headerView: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            Image(systemName: "arrow.down.circle.fill")
-                .foregroundColor(DesignTokens.primaryAccent)
+            Image("SqueezeBar-macOS-Default")
+                .resizable()
+                .frame(width: 22, height: 22)
             Text("SqueezeBar")
                 .font(.system(size: 15, weight: .semibold))
         }
