@@ -83,7 +83,7 @@ struct SettingsView: View {
         }
         .onChange(of: viewModel.isCompressing) { newValue in
             // Remove attached file on compression done
-            if !newValue {
+            if !newValue, viewModel.errorMessage == nil {
                 viewModel.removeAttachedFile()
             }
         }
