@@ -237,10 +237,7 @@ class VideoCompressor: CompressionStrategy {
             try await group.waitForAll()
         }
 
-        // Finalize writing
-        videoWriterInput.markAsFinished()
-        audioWriterInput?.markAsFinished()
-
+        // Finalize writing (inputs are marked finished inside processFrames/processAudio)
         await writer.finishWriting()
 
         // Check for errors
@@ -284,41 +281,33 @@ class VideoCompressor: CompressionStrategy {
             let samplingInterval = Double(originalFPS) / targetFPS
             var hasResumed = false
 
-            func processNextFrame() {
-                guard writerInput.isReadyForMoreMediaData else {
-                    // Not ready yet, callback will be invoked again when ready
-                    return
-                }
-
-                guard let sampleBuffer = readerOutput.copyNextSampleBuffer() else {
-                    // No more samples - finished
-                    if !hasResumed {
-                        hasResumed = true
-                        continuation.resume()
-                    }
-                    return
-                }
-
-                // Frame sampling logic (reduction only)
-                if targetFPS >= Double(originalFPS) {
-                    // Same framerate or higher (prevented by validation): direct pass-through
-                    writerInput.append(sampleBuffer)
-                } else {
-                    // Reduce framerate: intelligently skip frames
-                    if frameIndex >= Double(sampledFrameCount) * samplingInterval {
-                        writerInput.append(sampleBuffer)
-                        sampledFrameCount += 1
-                    }
-                }
-
-                frameIndex += 1
-
-                // Process next frame recursively
-                processNextFrame()
-            }
-
             writerInput.requestMediaDataWhenReady(on: queue) {
-                processNextFrame()
+                // Use a loop instead of recursion to avoid stack overflow on long videos
+                while writerInput.isReadyForMoreMediaData {
+                    guard let sampleBuffer = readerOutput.copyNextSampleBuffer() else {
+                        // No more samples - finished
+                        if !hasResumed {
+                            hasResumed = true
+                            writerInput.markAsFinished()
+                            continuation.resume()
+                        }
+                        return
+                    }
+
+                    // Frame sampling logic (reduction only)
+                    if targetFPS >= Double(originalFPS) {
+                        // Same framerate or higher (prevented by validation): direct pass-through
+                        writerInput.append(sampleBuffer)
+                    } else {
+                        // Reduce framerate: intelligently skip frames
+                        if frameIndex >= Double(sampledFrameCount) * samplingInterval {
+                            writerInput.append(sampleBuffer)
+                            sampledFrameCount += 1
+                        }
+                    }
+
+                    frameIndex += 1
+                }
             }
         }
     }
@@ -333,43 +322,28 @@ class VideoCompressor: CompressionStrategy {
 
             var hasResumed = false
 
-            func processNextAudioSample() {
-                guard writerInput.isReadyForMoreMediaData else {
-                    // Not ready yet, callback will be invoked again when ready
-                    return
-                }
-
-                guard let sampleBuffer = readerOutput.copyNextSampleBuffer() else {
-                    // No more samples - finished
-                    if !hasResumed {
-                        hasResumed = true
-                        continuation.resume()
-                    }
-                    return
-                }
-
-                writerInput.append(sampleBuffer)
-
-                // Process next sample recursively
-                processNextAudioSample()
-            }
-
             writerInput.requestMediaDataWhenReady(on: queue) {
-                processNextAudioSample()
+                // Use a loop instead of recursion to avoid stack overflow on long audio
+                while writerInput.isReadyForMoreMediaData {
+                    guard let sampleBuffer = readerOutput.copyNextSampleBuffer() else {
+                        // No more samples - finished
+                        if !hasResumed {
+                            hasResumed = true
+                            writerInput.markAsFinished()
+                            continuation.resume()
+                        }
+                        return
+                    }
+
+                    writerInput.append(sampleBuffer)
+                }
             }
         }
     }
 
     private func selectPreset(for quality: Double, asset: AVAsset) -> String {
-        // Get compatible presets for the asset using the modern async API
-        let compatiblePresets: [String]
-        if #available(macOS 13.0, *) {
-            // Use the new API that returns async sequence
-            compatiblePresets = AVAssetExportSession.allExportPresets()
-        } else {
-            // Fallback for older systems
-            compatiblePresets = AVAssetExportSession.exportPresets(compatibleWith: asset)
-        }
+        // exportPresets(compatibleWith:) is available since macOS 10.7 and returns only compatible presets
+        let compatiblePresets = AVAssetExportSession.exportPresets(compatibleWith: asset)
 
         // Select preset based on quality level
         if quality < 0.4 {

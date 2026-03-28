@@ -128,13 +128,33 @@ class ImageCompressor: CompressionStrategy {
         outputType: CFString,
         quality: Double
     ) throws {
-        // Get the image from source
-        guard let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
-            throw CompressionError.compressionFailed("Could not decode image")
-        }
-
         // Get original properties for metadata preservation
         let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any]
+
+        // For large images (>30 megapixels), subsample during decode to avoid loading
+        // hundreds of MB of raw bitmap into memory
+        let pixelWidth = (properties?[kCGImagePropertyPixelWidth] as? Int) ?? 0
+        let pixelHeight = (properties?[kCGImagePropertyPixelHeight] as? Int) ?? 0
+        let totalPixels = pixelWidth * pixelHeight
+        let largeMegapixelThreshold = 30_000_000
+
+        let cgImage: CGImage?
+        if totalPixels > largeMegapixelThreshold {
+            // Use thumbnail decode to subsample at the ImageIO level — never materializes full bitmap
+            let maxDimension = quality >= 0.7 ? 8192 : 4096
+            let thumbnailOptions: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceThumbnailMaxPixelSize: maxDimension,
+                kCGImageSourceCreateThumbnailWithTransform: true
+            ]
+            cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, thumbnailOptions as CFDictionary)
+        } else {
+            cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil)
+        }
+
+        guard let cgImage else {
+            throw CompressionError.compressionFailed("Could not decode image")
+        }
 
         // Create destination
         guard let imageDestination = CGImageDestinationCreateWithURL(
@@ -154,18 +174,6 @@ class ImageCompressor: CompressionStrategy {
         // Preserve orientation
         if let props = properties, let orientation = props[kCGImagePropertyOrientation] {
             options[kCGImagePropertyOrientation] = orientation
-        }
-
-        // For very low quality, consider downsampling
-        if quality < 0.4 {
-            let maxDimension = 2048
-            let width = cgImage.width
-            let height = cgImage.height
-
-            if width > maxDimension || height > maxDimension {
-                let scale = Double(maxDimension) / Double(max(width, height))
-                options[kCGImageDestinationImageMaxPixelSize] = Int(Double(max(width, height)) * scale)
-            }
         }
 
         // Add the decoded image with options

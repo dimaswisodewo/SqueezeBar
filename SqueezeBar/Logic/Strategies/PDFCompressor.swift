@@ -26,7 +26,7 @@ class PDFCompressor: CompressionStrategy {
         let originalSize = try getFileSize(at: inputURL)
 
         // Try compression using Quartz filters
-        let success = try compressUsingQuartzFilter(inputURL: inputURL, outputURL: outputURL, quality: quality)
+        let success = try await compressUsingQuartzFilter(inputURL: inputURL, outputURL: outputURL, quality: quality)
 
         guard success else {
             throw CompressionError.compressionFailed("Could not save compressed PDF")
@@ -43,9 +43,9 @@ class PDFCompressor: CompressionStrategy {
         )
     }
 
-    private func compressUsingQuartzFilter(inputURL: URL, outputURL: URL, quality: Double) throws -> Bool {
+    private func compressUsingQuartzFilter(inputURL: URL, outputURL: URL, quality: Double) async throws -> Bool {
         // Try using command-line tools for better compression
-        let success = compressUsingCommandLine(inputURL: inputURL, outputURL: outputURL, quality: quality)
+        let success = await compressUsingCommandLine(inputURL: inputURL, outputURL: outputURL, quality: quality)
 
         if success {
             return true
@@ -55,13 +55,13 @@ class PDFCompressor: CompressionStrategy {
         return compressUsingPDFKit(inputURL: inputURL, outputURL: outputURL, quality: quality)
     }
 
-    private func compressUsingCommandLine(inputURL: URL, outputURL: URL, quality: Double) -> Bool {
+    private func compressUsingCommandLine(inputURL: URL, outputURL: URL, quality: Double) async -> Bool {
         // Try Ghostscript (if installed) - most reliable compression
         let gsPath = findGhostscriptPath()
         logGhostscriptPath(gsPath)
 
         if let gsPath = gsPath {
-            if compressUsingGhostscript(gsPath: gsPath, inputURL: inputURL, outputURL: outputURL, quality: quality) {
+            if await compressUsingGhostscript(gsPath: gsPath, inputURL: inputURL, outputURL: outputURL, quality: quality) {
                 return true
             }
         }
@@ -118,7 +118,7 @@ class PDFCompressor: CompressionStrategy {
         #endif
     }
 
-    private func compressUsingGhostscript(gsPath: String, inputURL: URL, outputURL: URL, quality: Double) -> Bool {
+    private func compressUsingGhostscript(gsPath: String, inputURL: URL, outputURL: URL, quality: Double) async -> Bool {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: gsPath)
 
@@ -145,27 +145,31 @@ class PDFCompressor: CompressionStrategy {
 
         do {
             try process.run()
-            process.waitUntilExit()
-
-            if process.terminationStatus == 0 {
-                // Check if compression actually reduced file size
-                // Only get file size once for each file
-                if let originalSize = try? getFileSize(at: inputURL),
-                   let compressedSize = try? getFileSize(at: outputURL),
-                   compressedSize >= originalSize {
-                    // Compression didn't help, use a hard link or copy to save I/O
-                    try? FileManager.default.removeItem(at: outputURL)
-                    // Try hard link first (instant), fallback to copy
-                    do {
-                        try FileManager.default.linkItem(at: inputURL, to: outputURL)
-                    } catch {
-                        try? FileManager.default.copyItem(at: inputURL, to: outputURL)
-                    }
-                }
-                return true
-            }
         } catch {
             return false
+        }
+
+        // Wait for Ghostscript without blocking a thread pool thread
+        let exitStatus: Int32 = await withCheckedContinuation { continuation in
+            process.terminationHandler = { p in
+                continuation.resume(returning: p.terminationStatus)
+            }
+        }
+
+        if exitStatus == 0 {
+            // Check if compression actually reduced file size
+            if let originalSize = try? getFileSize(at: inputURL),
+               let compressedSize = try? getFileSize(at: outputURL),
+               compressedSize >= originalSize {
+                // Compression didn't help, use a hard link or copy to save I/O
+                try? FileManager.default.removeItem(at: outputURL)
+                do {
+                    try FileManager.default.linkItem(at: inputURL, to: outputURL)
+                } catch {
+                    try? FileManager.default.copyItem(at: inputURL, to: outputURL)
+                }
+            }
+            return true
         }
 
         return false

@@ -15,16 +15,18 @@ class CompressionManager {
         PDFCompressor()
     ]
 
-    // Cache strategy mappings for faster lookup
-    private lazy var strategyMap: [UTType: CompressionStrategy] = {
+    // Strategy map built eagerly at init time (thread-safe, no lazy race condition)
+    private let strategyMap: [UTType: CompressionStrategy]
+
+    init() {
         var map: [UTType: CompressionStrategy] = [:]
         for strategy in strategies {
             for type in strategy.supportedTypes {
                 map[type] = strategy
             }
         }
-        return map
-    }()
+        self.strategyMap = map
+    }
 
     /// Compresses a file and saves it to the specified output folder
     /// - Parameters:

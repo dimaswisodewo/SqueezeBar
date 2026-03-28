@@ -37,10 +37,14 @@ enum BundleResourceHelper {
     /// Call this to verify permissions are correct
     /// - Parameter path: Path to the binary
     /// - Returns: True if permissions were set successfully
+    private static var permissionsVerified = false
+
     static func ensureExecutablePermissions(for path: String) -> Bool {
+        guard !permissionsVerified else { return true }
         do {
             let attributes = [FileAttributeKey.posixPermissions: 0o755]
             try FileManager.default.setAttributes(attributes, ofItemAtPath: path)
+            permissionsVerified = true
             return true
         } catch {
             print("Failed to set executable permissions: \(error)")

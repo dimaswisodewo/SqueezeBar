@@ -11,6 +11,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 import AVFoundation
 
+@MainActor
 class MainViewModel: ObservableObject {
     // Singleton instance
     static let shared = MainViewModel()
@@ -27,6 +28,7 @@ class MainViewModel: ObservableObject {
     @Published var videoFramerate: Float?
 
     private let compressionManager = CompressionManager()
+    private var resetTask: Task<Void, Never>?
     private let byteFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useKB, .useMB, .useGB]
@@ -40,11 +42,10 @@ class MainViewModel: ObservableObject {
     func handleDrop(providers: [NSItemProvider]) -> Bool {
         guard let provider = providers.first else { return false }
 
-        // Load file URL asynchronously
+        // Load file URL asynchronously; dispatch back to MainActor for UI updates
         provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { [weak self] item, error in
-            // Ensure all UI updates happen on the next run loop to avoid publishing during view updates
-            DispatchQueue.main.async {
-                guard let self = self else { return }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
 
                 if let error = error {
                     self.statusMessage = "Error: \(error.localizedDescription)"
@@ -53,16 +54,22 @@ class MainViewModel: ObservableObject {
 
                 if let data = item as? Data,
                    let url = URL(dataRepresentation: data, relativeTo: nil) {
+                    // Cancel any pending cosmetic reset
+                    self.resetTask?.cancel()
+                    self.resetTask = nil
+
                     self.droppedFileURL = url
                     self.statusMessage = ""
                     self.errorMessage = nil
 
-                    // Detect if file is video
-                    if let resourceValues = try? url.resourceValues(forKeys: [.contentTypeKey]),
-                       let contentType = resourceValues.contentType {
-                        self.isCurrentFileVideo = contentType.conforms(to: .video) || contentType.conforms(to: .movie)
+                    // Get all resource values in one call
+                    let resourceValues = try? url.resourceValues(forKeys: [.contentTypeKey, .fileSizeKey])
+                    let contentType = resourceValues?.contentType
+                    let fileSize = resourceValues?.fileSize
 
-                        // Extract video metadata if it's a video
+                    // Detect if file is video
+                    if let contentType = contentType {
+                        self.isCurrentFileVideo = contentType.conforms(to: .video) || contentType.conforms(to: .movie)
                         if self.isCurrentFileVideo {
                             Task {
                                 await self.extractVideoMetadata(from: url)
@@ -79,9 +86,7 @@ class MainViewModel: ObservableObject {
                     let ext = url.pathExtension.uppercased()
                     self.fileTypeHint = ext.isEmpty ? nil : ext
 
-                    // Use resourceValues API which is more efficient than attributesOfItem
-                    if let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey]),
-                       let size = resourceValues.fileSize {
+                    if let size = fileSize {
                         self.fileSizeString = self.byteFormatter.string(fromByteCount: Int64(size))
                     } else {
                         self.fileSizeString = nil
@@ -97,69 +102,67 @@ class MainViewModel: ObservableObject {
     }
 
     func handleFileOpen(url: URL) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+        // Prevent interrupting active compression
+        if isCompressing {
+            statusMessage = "Please wait for current compression to finish"
+            return
+        }
 
-            // Prevent interrupting active compression
-            if self.isCompressing {
-                self.statusMessage = "Please wait for current compression to finish"
+        // Cancel any pending cosmetic reset
+        resetTask?.cancel()
+        resetTask = nil
+
+        // Get all resource values in one call to avoid multiple file I/O syscalls
+        let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey])
+        let fileSize = resourceValues?.fileSize
+        let contentType = resourceValues?.contentType
+
+        // Validate file size to prevent memory issues
+        if let size = fileSize, let contentType = contentType {
+            let maxSize: Int64
+            if contentType.conforms(to: .video) {
+                maxSize = 10 * 1024 * 1024 * 1024 // 10GB for videos
+            } else if contentType.conforms(to: .pdf) {
+                maxSize = 1 * 1024 * 1024 * 1024 // 1GB for PDFs
+            } else {
+                maxSize = 500 * 1024 * 1024 // 500MB for images
+            }
+
+            if Int64(size) > maxSize {
+                let sizeMB = Double(size) / (1024 * 1024)
+                let maxMB = Double(maxSize) / (1024 * 1024)
+                errorMessage = String(format: "File too large: %.0fMB. Maximum: %.0fMB", sizeMB, maxMB)
                 return
             }
+        }
 
-            // Validate file size to prevent memory issues
-            if let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey]),
-               let size = resourceValues.fileSize,
-               let contentType = resourceValues.contentType {
+        droppedFileURL = url
+        statusMessage = ""
+        errorMessage = nil
 
-                let maxSize: Int64
-                if contentType.conforms(to: .video) {
-                    maxSize = 10 * 1024 * 1024 * 1024 // 10GB for videos
-                } else if contentType.conforms(to: .pdf) {
-                    maxSize = 1 * 1024 * 1024 * 1024 // 1GB for PDFs
-                } else {
-                    maxSize = 500 * 1024 * 1024 // 500MB for images
-                }
-
-                if Int64(size) > maxSize {
-                    let sizeMB = Double(size) / (1024 * 1024)
-                    let maxMB = Double(maxSize) / (1024 * 1024)
-                    self.errorMessage = String(format: "File too large: %.0fMB. Maximum: %.0fMB", sizeMB, maxMB)
-                    return
-                }
-            }
-
-            self.droppedFileURL = url
-            self.statusMessage = ""
-            self.errorMessage = nil
-
-            // Detect if file is video
-            if let resourceValues = try? url.resourceValues(forKeys: [.contentTypeKey]),
-               let contentType = resourceValues.contentType {
-                self.isCurrentFileVideo = contentType.conforms(to: .video) || contentType.conforms(to: .movie)
-
-                // Extract video metadata if it's a video
-                if self.isCurrentFileVideo {
-                    Task {
-                        await self.extractVideoMetadata(from: url)
-                    }
-                } else {
-                    self.videoFramerate = nil
+        // Detect if file is video
+        if let contentType = contentType {
+            isCurrentFileVideo = contentType.conforms(to: .video) || contentType.conforms(to: .movie)
+            if isCurrentFileVideo {
+                Task {
+                    await extractVideoMetadata(from: url)
                 }
             } else {
-                self.isCurrentFileVideo = false
-                self.videoFramerate = nil
+                videoFramerate = nil
             }
+        } else {
+            isCurrentFileVideo = false
+            videoFramerate = nil
+        }
 
-            // Update file info (same logic as handleDrop)
-            let ext = url.pathExtension.uppercased()
-            self.fileTypeHint = ext.isEmpty ? nil : ext
+        // Update file info
+        let ext = url.pathExtension.uppercased()
+        fileTypeHint = ext.isEmpty ? nil : ext
 
-            if let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey]),
-               let size = resourceValues.fileSize {
-                self.fileSizeString = self.byteFormatter.string(fromByteCount: Int64(size))
-            } else {
-                self.fileSizeString = nil
-            }
+        if let size = fileSize {
+            fileSizeString = byteFormatter.string(fromByteCount: Int64(size))
+        } else {
+            fileSizeString = nil
         }
     }
 
@@ -193,44 +196,34 @@ class MainViewModel: ObservableObject {
     }
 
     func removeAttachedFile() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            self.droppedFileURL = nil
-            self.statusMessage = ""
-            self.errorMessage = nil
-            self.fileTypeHint = nil
-            self.fileSizeString = nil
-            self.isCurrentFileVideo = false
-            self.videoFramerate = nil
-        }
+        resetTask?.cancel()
+        resetTask = nil
+        droppedFileURL = nil
+        statusMessage = ""
+        errorMessage = nil
+        fileTypeHint = nil
+        fileSizeString = nil
+        isCurrentFileVideo = false
+        videoFramerate = nil
     }
 
     private func extractVideoMetadata(from url: URL) async {
         let asset = AVAsset(url: url)
 
-        // Get video track
         guard let videoTrack = try? await asset.loadTracks(withMediaType: .video).first else {
-            await MainActor.run {
-                self.videoFramerate = nil
-            }
+            videoFramerate = nil
             return
         }
 
-        // Get original framerate
         let fps = try? await videoTrack.load(.nominalFrameRate)
-
-        await MainActor.run {
-            let rounded = floor(fps ?? 0)
-            self.videoFramerate = rounded > 0 ? rounded : nil
-        }
+        let rounded = floor(fps ?? 0)
+        videoFramerate = rounded > 0 ? rounded : nil
     }
 
     func openResultFolder() {
         guard let result = lastResult else { return }
 
-        // Perform file system operation on background queue to avoid freezing UI
         DispatchQueue.global(qos: .userInitiated).async {
-            // Get the folder containing the compressed file
             let folderURL = result.compressedURL.deletingLastPathComponent()
             NSWorkspace.shared.open(folderURL)
         }
@@ -239,34 +232,29 @@ class MainViewModel: ObservableObject {
     func compressFile(settings: AppSettings) async {
         guard let inputURL = droppedFileURL else { return }
         guard let outputFolder = settings.outputFolderURL else {
-            await MainActor.run {
-                errorMessage = "Please choose a save location first"
-            }
+            errorMessage = "Please choose a save location first"
             return
         }
 
-        // Ensure we have access to the output folder
         guard settings.ensureAccess() else {
-            await MainActor.run {
-                errorMessage = "Cannot access save location. Please choose again."
-            }
+            errorMessage = "Cannot access save location. Please choose again."
             return
         }
 
-        await MainActor.run {
-            isCompressing = true
-            errorMessage = nil
-            statusMessage = getCompressionMessage(for: settings.compressionMode)
-        }
+        isCompressing = true
+        errorMessage = nil
+        statusMessage = getCompressionMessage(for: settings.compressionMode)
 
-        // Start accessing the input file
         let inputAccessing = inputURL.startAccessingSecurityScopedResource()
 
-        do {
-            // Calculate quality based on mode
-            let quality = try calculateQuality(settings: settings, inputURL: inputURL)
+        defer {
+            if inputAccessing {
+                inputURL.stopAccessingSecurityScopedResource()
+            }
+        }
 
-            // Get framerate setting
+        do {
+            let quality = try calculateQuality(settings: settings, inputURL: inputURL)
             let targetFramerate = settings.effectiveFramerate
 
             let result = try await compressionManager.compress(
@@ -276,14 +264,16 @@ class MainViewModel: ObservableObject {
                 targetFramerate: targetFramerate
             )
 
-            await MainActor.run {
-                lastResult = result
-                statusMessage = formatSuccessMessage(result: result, mode: settings.compressionMode)
-            }
+            lastResult = result
+            statusMessage = formatSuccessMessage(result: result, mode: settings.compressionMode)
+            // Unblock immediately so the user can start another compression
+            isCompressing = false
 
-            // Reset dropped file after successful compression with optimized sleep
-            try? await Task.sleep(nanoseconds: 2_500_000_000)
-            await MainActor.run {
+            // Schedule cosmetic UI reset separately — cancellable if user drops a new file
+            resetTask?.cancel()
+            resetTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                guard let self, !Task.isCancelled else { return }
                 self.droppedFileURL = nil
                 self.statusMessage = ""
                 self.lastResult = nil
@@ -293,18 +283,8 @@ class MainViewModel: ObservableObject {
                 self.videoFramerate = nil
             }
         } catch {
-            await MainActor.run {
-                errorMessage = formatErrorMessage(error)
-                statusMessage = ""
-            }
-        }
-
-        // Stop accessing the input file if we started
-        if inputAccessing {
-            inputURL.stopAccessingSecurityScopedResource()
-        }
-
-        await MainActor.run {
+            errorMessage = formatErrorMessage(error)
+            statusMessage = ""
             isCompressing = false
         }
     }
