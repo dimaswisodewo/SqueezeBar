@@ -11,6 +11,7 @@ import SwiftUI
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
+    private var dropOverlay: StatusItemDropOverlay?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Show dock icon - app runs in both menu bar and dock
@@ -28,6 +29,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             button.action = #selector(togglePopover)
             button.target = self
+
+            // Set up drag-and-drop overlay so users can drag files onto the menu bar icon
+            let overlay = StatusItemDropOverlay(frame: button.bounds)
+            overlay.autoresizingMask = [.width, .height]
+            overlay.dropDelegate = self
+            button.addSubview(overlay)
+            dropOverlay = overlay
         }
 
         // Create popover
@@ -101,10 +109,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // Helper method to check if file type is supported
-    private func isFileTypeSupported(_ url: URL) -> Bool {
-        // Fast check using path extension (avoids expensive resourceValues call)
-        let ext = url.pathExtension.lowercased()
+    func isFileTypeSupported(_ url: URL) -> Bool {
+        return AppDelegate.isSupportedFileExtension(url.pathExtension.lowercased())
+    }
 
+    static func isSupportedFileExtension(_ ext: String) -> Bool {
         let supportedExtensions: Set<String> = [
             // Images
             "jpg", "jpeg", "png", "heic", "heif", "bmp", "tiff", "tif",
@@ -113,7 +122,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // PDF
             "pdf"
         ]
-
         return supportedExtensions.contains(ext)
+    }
+}
+
+// MARK: - StatusItemDropDelegate
+
+extension AppDelegate: StatusItemDropDelegate {
+
+    func dropOverlayDraggingEntered() {
+        if !popover.isShown {
+            showPopover()
+        }
+        MainViewModel.shared.isDragging = true
+    }
+
+    func dropOverlayDraggingExited() {
+        MainViewModel.shared.isDragging = false
+    }
+
+    func dropOverlayPerformDrop(fileURL: URL) {
+        MainViewModel.shared.isDragging = false
+        if !popover.isShown {
+            showPopover()
+        }
+        MainViewModel.shared.handleFileOpen(url: fileURL)
     }
 }
