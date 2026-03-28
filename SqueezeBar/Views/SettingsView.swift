@@ -77,7 +77,7 @@ struct SettingsView: View {
         }
         .onChange(of: viewModel.isCompressing) { newValue in
             if !newValue, viewModel.errorMessage == nil {
-                viewModel.removeAttachedFile()
+                viewModel.removeAttachedFileWithoutResetingStatusMessage()
             }
         }
         .padding()

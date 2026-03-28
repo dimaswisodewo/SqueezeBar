@@ -206,6 +206,17 @@ class MainViewModel: ObservableObject {
         isCurrentFileVideo = false
         videoFramerate = nil
     }
+  
+    func removeAttachedFileWithoutResetingStatusMessage() {
+        resetTask?.cancel()
+        resetTask = nil
+        droppedFileURL = nil
+        errorMessage = nil
+        fileTypeHint = nil
+        fileSizeString = nil
+        isCurrentFileVideo = false
+        videoFramerate = nil
+    }
 
     private func extractVideoMetadata(from url: URL) async {
         let asset = AVAsset(url: url)

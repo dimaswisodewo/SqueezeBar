@@ -172,6 +172,14 @@ struct MainPopoverView: View {
                 }
                 .buttonStyle(.plain)
                 .hoverScale(1.05)
+                
+                Button(action: { viewModel.removeAttachedFile() }) {
+                    Text("Close")
+                        .font(DesignTokens.Typography.tiny)
+                        .foregroundStyle(DesignTokens.Candy.coral)
+                }
+                .buttonStyle(.plain)
+                .hoverScale(1.05)
             }
         }
         .padding(10)
