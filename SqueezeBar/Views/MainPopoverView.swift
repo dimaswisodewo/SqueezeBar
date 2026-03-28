@@ -11,33 +11,38 @@ struct MainPopoverView: View {
     @ObservedObject private var viewModel = MainViewModel.shared
     @StateObject private var settings = AppSettings()
 
+    @State private var shakeError = false
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
             headerView
 
-            Divider()
-
             // Scrollable content area
             ScrollView {
                 VStack(spacing: 0) {
                     // Drop Zone Section
-                    VStack(spacing: DesignTokens.Spacing.lg) {
+                    VStack(spacing: DesignTokens.Spacing.md) {
                         DropZoneView(viewModel: viewModel)
                             .padding(.horizontal, DesignTokens.Spacing.lg)
 
                         // File info
                         if let fileType = viewModel.fileTypeHint, let fileSize = viewModel.fileSizeString {
                             fileInfoView(fileType: fileType, fileSize: fileSize)
+                                .transition(.opacity)
                         }
 
                         // Status messages
                         if !viewModel.statusMessage.isEmpty || viewModel.errorMessage != nil {
                             statusMessageView
                                 .padding(.horizontal, DesignTokens.Spacing.lg)
+                                .transition(.scale(scale: 0.95).combined(with: .opacity))
                         }
                     }
                     .padding(.vertical, DesignTokens.Spacing.md)
+                    .animation(AnimationConstants.popIn, value: viewModel.droppedFileURL != nil)
+                    .animation(AnimationConstants.popIn, value: viewModel.errorMessage)
+                    .animation(AnimationConstants.popIn, value: viewModel.statusMessage)
 
                     Divider()
 
@@ -51,8 +56,21 @@ struct MainPopoverView: View {
             // Compress Button
             compressButtonView
         }
-        .frame(width: 400, height: 560)
+        .frame(width: 400, height: 580)
+        .onChange(of: viewModel.errorMessage) { newValue in
+            if newValue != nil {
+                shakeError = true
+                HapticManager.shared.light()
+            }
+        }
+        .onChange(of: viewModel.statusMessage) { newValue in
+            if !newValue.isEmpty && !viewModel.isCompressing {
+                HapticManager.shared.success()
+            }
+        }
     }
+
+    // MARK: - Header
 
     private var headerView: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
@@ -60,37 +78,48 @@ struct MainPopoverView: View {
                 .resizable()
                 .frame(width: 22, height: 22)
             Text("SqueezeBar")
-                .font(.system(size: 15, weight: .semibold))
+                .font(DesignTokens.Typography.title)
         }
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
         .background(DesignTokens.cardBackground)
+        .shadow(
+            color: DesignTokens.Shadow.toy.color,
+            radius: DesignTokens.Shadow.toy.radius,
+            x: DesignTokens.Shadow.toy.x,
+            y: DesignTokens.Shadow.toy.y
+        )
     }
+
+    // MARK: - File Info
 
     private func fileInfoView(fileType: String, fileSize: String) -> some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             Image(systemName: "doc.fill")
                 .font(.system(size: 9))
-                .foregroundColor(.secondary)
+                .foregroundStyle(Color.secondary)
 
             Text(fileType)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(.secondary)
+                .font(DesignTokens.Typography.tiny)
+                .foregroundStyle(Color.secondary)
 
             Text("•")
                 .font(.system(size: 8))
-                .foregroundColor(.secondary.opacity(0.5))
+                .foregroundStyle(Color.secondary.opacity(0.5))
 
             Text(fileSize)
-                .font(.system(size: 10))
-                .foregroundColor(.secondary)
+                .font(DesignTokens.Typography.tiny)
+                .foregroundStyle(Color.secondary)
         }
     }
+
+    // MARK: - Status Messages
 
     private var statusMessageView: some View {
         Group {
             if let error = viewModel.errorMessage {
                 errorView(message: error)
+                    .shake(trigger: $shakeError)
             } else if !viewModel.statusMessage.isEmpty {
                 successView(message: viewModel.statusMessage, isCompressing: viewModel.isCompressing)
             }
@@ -99,22 +128,22 @@ struct MainPopoverView: View {
 
     private func errorView(message: String) -> some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            Image(systemName: "exclamationmark.circle.fill")
-                .foregroundColor(DesignTokens.errorRed)
-                .font(.system(size: 12))
+            Image(systemName: "xmark.circle.fill")
+                .foregroundStyle(DesignTokens.Candy.coral)
+                .font(.system(size: 13))
             Text(message)
-                .font(.system(size: 11))
-                .foregroundColor(DesignTokens.errorRed)
+                .font(DesignTokens.Typography.caption)
+                .foregroundStyle(DesignTokens.Candy.coral)
             Spacer()
         }
         .padding(10)
-        .background(DesignTokens.errorRed.opacity(0.1))
-        .cornerRadius(DesignTokens.CornerRadius.medium)
+        .background(DesignTokens.Candy.coral.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium))
         .shadow(
-            color: DesignTokens.Shadow.message.color,
-            radius: DesignTokens.Shadow.message.radius,
-            x: DesignTokens.Shadow.message.x,
-            y: DesignTokens.Shadow.message.y
+            color: DesignTokens.Shadow.toy.color,
+            radius: DesignTokens.Shadow.toy.radius,
+            x: DesignTokens.Shadow.toy.x,
+            y: DesignTokens.Shadow.toy.y
         )
     }
 
@@ -124,39 +153,43 @@ struct MainPopoverView: View {
                 ProgressView()
                     .controlSize(.small)
                     .scaleEffect(0.7)
+                    .tint(DesignTokens.Candy.blue)
             } else {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(DesignTokens.successGreen)
-                    .font(.system(size: 12))
+                    .foregroundStyle(DesignTokens.Candy.mint)
+                    .font(.system(size: 13))
             }
             Text(message)
-                .font(.system(size: 11))
-                .foregroundColor(isCompressing ? .secondary : DesignTokens.successGreen)
+                .font(DesignTokens.Typography.caption)
+                .foregroundStyle(isCompressing ? Color.secondary : DesignTokens.Candy.mint)
             Spacer()
 
-            // Show "Open Folder" button when compression is complete
             if !isCompressing && viewModel.lastResult != nil {
                 Button(action: { viewModel.openResultFolder() }) {
                     Text("Open Folder")
-                        .font(.system(size: 10))
+                        .font(DesignTokens.Typography.tiny)
+                        .foregroundStyle(DesignTokens.Candy.blue)
                 }
-                .buttonStyle(.borderless)
-                .controlSize(.mini)
+                .buttonStyle(.plain)
+                .hoverScale(1.05)
             }
         }
         .padding(10)
-        .background(isCompressing ? DesignTokens.primaryAccent.opacity(0.1) : DesignTokens.successGreen.opacity(0.1))
-        .cornerRadius(DesignTokens.CornerRadius.medium)
+        .background(isCompressing ? DesignTokens.Candy.blue.opacity(0.08) : DesignTokens.Candy.mint.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium))
         .shadow(
-            color: DesignTokens.Shadow.message.color,
-            radius: DesignTokens.Shadow.message.radius,
-            x: DesignTokens.Shadow.message.x,
-            y: DesignTokens.Shadow.message.y
+            color: DesignTokens.Shadow.toy.color,
+            radius: DesignTokens.Shadow.toy.radius,
+            x: DesignTokens.Shadow.toy.x,
+            y: DesignTokens.Shadow.toy.y
         )
     }
 
+    // MARK: - Compress Button
+
     private var compressButtonView: some View {
         Button(action: {
+            HapticManager.shared.medium()
             Task {
                 await viewModel.compressFile(settings: settings)
             }
@@ -166,17 +199,16 @@ struct MainPopoverView: View {
                     ProgressView()
                         .controlSize(.small)
                         .scaleEffect(0.8)
+                        .tint(.white)
                 } else {
                     Image(systemName: "bolt.fill")
                 }
-                Text(viewModel.isCompressing ? "Compressing..." : "Compress File")
-                    .font(.system(size: 13, weight: .semibold))
+                Text(viewModel.isCompressing ? "Squeezing..." : "Squeeze File")
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 32)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(ToyButtonStyle())
         .disabled(viewModel.droppedFileURL == nil || settings.outputFolderURL == nil || viewModel.isCompressing)
+        .hoverScale(1.02)
         .padding(.horizontal, DesignTokens.Spacing.lg)
         .padding(.vertical, 10)
         .background(DesignTokens.cardBackground)

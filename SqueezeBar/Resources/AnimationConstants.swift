@@ -26,6 +26,14 @@ enum AnimationConstants {
     /// Use for: Success states, file drop completion
     static let celebration = Animation.spring(response: 0.5, dampingFraction: 0.6)
 
+    /// Pop-in spring for banners and status messages
+    /// Use for: Success/error banner appearance
+    static let popIn = Animation.spring(response: 0.35, dampingFraction: 0.65)
+
+    /// Quick snap for shake/error feedback
+    /// Use for: Error state shake effect
+    static let shake = Animation.spring(response: 0.15, dampingFraction: 0.3)
+
     // MARK: - Easing Animations
 
     /// Smooth fade in/out

@@ -13,147 +13,161 @@ struct DropZoneView: View {
     @State private var isTargeted = false
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DesignTokens.Spacing.md) {
             // Icon
             ZStack {
-                Circle()
+                RoundedRectangle(cornerRadius: 18)
                     .fill(iconBackgroundColor)
-                    .frame(width: 60, height: 60)
+                    .frame(width: 70, height: 70)
 
                 Image(systemName: iconName)
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundColor(iconColor)
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(iconColor)
             }
+            .scaleEffect(viewModel.isDragging ? 1.12 : 1.0)
+            .animation(AnimationConstants.microInteraction, value: viewModel.isDragging)
 
             // Main message
             Text(mainMessage)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.primary)
+                .font(DesignTokens.Typography.heading)
+                .foregroundStyle(Color.primary)
                 .multilineTextAlignment(.center)
 
             // Subtitle
             if let subtitle = subtitleMessage {
                 Text(subtitle)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundStyle(Color.secondary)
                     .multilineTextAlignment(.center)
             }
 
-            // Supported formats hint
+            // Supported formats as pill badges
             if viewModel.droppedFileURL == nil && !viewModel.isDragging {
-                Text("PDF · Images · Videos")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary.opacity(0.7))
-                    .padding(.top, 4)
+                HStack(spacing: DesignTokens.Spacing.xs) {
+                    FormatPill("PDF",    color: DesignTokens.Candy.coral)
+                    FormatPill("Images", color: DesignTokens.Candy.blue)
+                    FormatPill("Videos", color: DesignTokens.Candy.lavender)
+                }
+                .padding(.top, 2)
+                .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }
         }
         .frame(maxWidth: .infinity)
         .frame(minHeight: 160)
         .padding()
         .background(backgroundColor)
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.large))
         .overlay(
             RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.large)
-                .strokeBorder(
-                    style: StrokeStyle(lineWidth: 2, dash: viewModel.isDragging ? [0] : [8, 4])
-                )
-                .foregroundColor(borderColor)
+                .strokeBorder(borderColor, lineWidth: 2)
         )
         .overlay(alignment: .topTrailing) {
-            // Remove button - only show when file is attached
+            // Remove button — only show when a file is attached
             if viewModel.droppedFileURL != nil {
                 Button(action: {
+                    HapticManager.shared.light()
                     viewModel.removeAttachedFile()
                 }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundStyle(.secondary, Color.secondary.opacity(0.2))
-                        .symbolRenderingMode(.palette)
+                    ZStack {
+                        Circle()
+                            .fill(DesignTokens.Candy.coral)
+                            .frame(width: 24, height: 24)
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
                 }
                 .buttonStyle(.plain)
                 .disabled(viewModel.isCompressing)
-                .padding(12)
+                .padding(10)
+                .hoverScale(1.1)
+                .pressScale(0.9)
+                .transition(.scale.combined(with: .opacity))
             }
         }
+        .contentShape(Rectangle())
         .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
-            // Prevent dropping files during compression
-            if viewModel.isCompressing {
-                return false
-            }
-            return viewModel.handleDrop(providers: providers)
+            if viewModel.isCompressing { return false }
+            let result = viewModel.handleDrop(providers: providers)
+            if result { HapticManager.shared.medium() }
+            return result
         }
         .onChange(of: isTargeted) { newValue in
-            // Update viewModel.isDragging asynchronously to avoid publishing changes during view updates
             DispatchQueue.main.async {
-                // Don't update isDragging state if compressing
                 if !viewModel.isCompressing {
                     viewModel.isDragging = newValue
+                    if newValue { HapticManager.shared.light() }
                 }
             }
         }
         .onTapGesture {
-            // Only open file picker when not compressing, not dragging and no file is selected
             if !viewModel.isCompressing && !viewModel.isDragging && viewModel.droppedFileURL == nil {
                 viewModel.openFilePicker()
             }
         }
-        .contentShape(Rectangle()) // Make entire area tappable
+        .animation(AnimationConstants.stateTransition, value: viewModel.droppedFileURL != nil)
+        .animation(AnimationConstants.stateTransition, value: viewModel.isDragging)
     }
+
+    // MARK: - State-driven computed properties
 
     private var iconName: String {
         if viewModel.isDragging {
             return "arrow.down.circle.fill"
         } else if viewModel.droppedFileURL != nil {
-            return "checkmark.circle.fill"
+            return "checkmark.seal.fill"
         } else {
-            return "doc.badge.plus"
+            return "arrow.down.doc.fill"
         }
     }
 
     private var iconColor: Color {
         if viewModel.isDragging {
-            return .accentColor
+            return DesignTokens.Candy.pink
         } else if viewModel.droppedFileURL != nil {
-            return .green
+            return DesignTokens.Candy.mint
         } else {
-            return .secondary
+            return DesignTokens.Candy.blue
         }
     }
 
     private var iconBackgroundColor: Color {
         if viewModel.isDragging {
-            return Color.accentColor.opacity(0.15)
+            return DesignTokens.Candy.pink.opacity(0.15)
         } else if viewModel.droppedFileURL != nil {
-            return Color.green.opacity(0.15)
+            return DesignTokens.Candy.mint.opacity(0.15)
         } else {
-            return Color.secondary.opacity(0.1)
+            return DesignTokens.Candy.blue.opacity(0.1)
         }
     }
 
     private var backgroundColor: Color {
         if viewModel.isDragging {
-            return Color.accentColor.opacity(0.08)
+            return DesignTokens.Candy.pink.opacity(0.07)
+        } else if viewModel.droppedFileURL != nil {
+            return DesignTokens.Candy.mint.opacity(0.06)
         } else {
-            return Color.clear
+            return DesignTokens.Candy.blue.opacity(0.04)
         }
     }
 
     private var borderColor: Color {
         if viewModel.isDragging {
-            return .accentColor
+            return DesignTokens.Candy.pink
         } else if viewModel.droppedFileURL != nil {
-            return .green.opacity(0.5)
+            return DesignTokens.Candy.mint.opacity(0.6)
         } else {
-            return .secondary.opacity(0.3)
+            return DesignTokens.Candy.blue.opacity(0.25)
         }
     }
 
     private var mainMessage: String {
         if viewModel.isDragging {
-            return "Drop your file here"
+            return "Let it go!"
         } else if viewModel.droppedFileURL != nil {
             return viewModel.droppedFileURL?.lastPathComponent ?? "File ready"
         } else {
-            return "Drop your file here"
+            return "Drop a file to squeeze!"
         }
     }
 
@@ -161,15 +175,37 @@ struct DropZoneView: View {
         if viewModel.isDragging {
             return "Release to add file"
         } else if viewModel.droppedFileURL != nil {
-            return "Ready to compress"
+            return "Ready to squeeze"
         } else {
             return "or click to browse"
         }
     }
 }
 
+// MARK: - Format Pill Badge
+
+private struct FormatPill: View {
+    let label: String
+    let color: Color
+
+    init(_ label: String, color: Color) {
+        self.label = label
+        self.color = color
+    }
+
+    var body: some View {
+        Text(label)
+            .font(DesignTokens.Typography.tiny)
+            .foregroundStyle(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.12))
+            .clipShape(Capsule())
+    }
+}
+
 #Preview {
     DropZoneView(viewModel: MainViewModel.shared)
-        .frame(width: 340, height: 160)
+        .frame(width: 340, height: 200)
         .padding()
 }
