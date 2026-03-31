@@ -10,6 +10,7 @@ import UniformTypeIdentifiers
 
 struct DropZoneView: View {
     @ObservedObject var viewModel: MainViewModel
+    var appMode: AppMode = .compress
     @State private var isTargeted = false
 
     var body: some View {
@@ -175,7 +176,7 @@ struct DropZoneView: View {
         if viewModel.isDragging {
             return "Release to add file"
         } else if viewModel.droppedFileURL != nil {
-            return "Ready to squeeze"
+            return appMode == .compress ? "Ready to squeeze" : "Ready to convert"
         } else {
             return "or click to browse"
         }

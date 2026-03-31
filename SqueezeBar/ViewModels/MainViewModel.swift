@@ -26,8 +26,12 @@ class MainViewModel: ObservableObject {
     @Published var fileSizeString: String?
     @Published var isCurrentFileVideo = false
     @Published var videoFramerate: Float?
+    @Published var appMode: AppMode = .compress
+    @Published var isConverting: Bool = false
+    @Published var lastConversionResult: ConversionResult?
 
     private let compressionManager = CompressionManager()
+    private let conversionManager = ConversionManager()
     private var resetTask: Task<Void, Never>?
     private let byteFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
@@ -238,6 +242,10 @@ class MainViewModel: ObservableObject {
             let folderURL = result.compressedURL.deletingLastPathComponent()
             NSWorkspace.shared.open(folderURL)
         }
+    }
+
+    func convertFile(settings: AppSettings) async {
+        // Stub — implemented in Phase 2
     }
 
     func compressFile(settings: AppSettings) async {

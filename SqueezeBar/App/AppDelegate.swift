@@ -40,7 +40,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Create popover
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 400, height: 580)
+        popover.contentSize = NSSize(width: 400, height: 640)
         popover.behavior = .transient
         popover.animates = false
         popover.contentViewController = NSHostingController(rootView: MainPopoverView())
@@ -116,9 +116,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     static func isSupportedFileExtension(_ ext: String) -> Bool {
         let supportedExtensions: Set<String> = [
             // Images
-            "jpg", "jpeg", "png", "heic", "heif", "bmp", "tiff", "tif",
+            "jpg", "jpeg", "png", "heic", "heif", "bmp", "tiff", "tif", "webp", "gif",
             // Videos
-            "mp4", "mov", "m4v", "mpg", "mpeg",
+            "mp4", "mov", "m4v", "mpg", "mpeg", "avi", "mkv",
+            // Audio
+            "aac", "m4a",
             // PDF
             "pdf"
         ]

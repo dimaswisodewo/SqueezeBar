@@ -50,9 +50,19 @@ class AppSettings: ObservableObject {
         return enableFramerateReduction ? targetFramerate : nil
     }
 
+    // MARK: - Conversion Settings
+    @Published var conversionCategory: ConversionCategory = .imageToImage
+    @Published var imageOutputFormat: ImageOutputFormat = .jpeg
+    @Published var imageConversionQuality: Double = 0.85
+    @Published var videoOutputFormat: VideoOutputFormat = .mp4
+
     private static let bookmarkKey = "outputFolderBookmark"
     private static let enableFramerateReductionKey = "enableFramerateReduction"
     private static let targetFramerateKey = "targetFramerate"
+    private static let conversionCategoryKey = "conversionCategory"
+    private static let imageOutputFormatKey = "imageOutputFormat"
+    private static let imageConversionQualityKey = "imageConversionQuality"
+    private static let videoOutputFormatKey = "videoOutputFormat"
 
     private var isAccessingSecurityScope = false {
         didSet {
@@ -69,6 +79,7 @@ class AppSettings: ObservableObject {
     init() {
         loadOutputFolder()
         loadFramerateSettings()
+        loadConversionSettings()
     }
 
     /// Save output folder as security-scoped bookmark
@@ -140,6 +151,34 @@ class AppSettings: ObservableObject {
         } else {
             UserDefaults.standard.removeObject(forKey: Self.targetFramerateKey)
         }
+    }
+
+    /// Load conversion settings from UserDefaults
+    private func loadConversionSettings() {
+        if let raw = UserDefaults.standard.string(forKey: Self.conversionCategoryKey),
+           let value = ConversionCategory(rawValue: raw) {
+            conversionCategory = value
+        }
+        if let raw = UserDefaults.standard.string(forKey: Self.imageOutputFormatKey),
+           let value = ImageOutputFormat(rawValue: raw) {
+            imageOutputFormat = value
+        }
+        let savedQuality = UserDefaults.standard.double(forKey: Self.imageConversionQualityKey)
+        if savedQuality > 0 {
+            imageConversionQuality = savedQuality
+        }
+        if let raw = UserDefaults.standard.string(forKey: Self.videoOutputFormatKey),
+           let value = VideoOutputFormat(rawValue: raw) {
+            videoOutputFormat = value
+        }
+    }
+
+    /// Save conversion settings to UserDefaults
+    func saveConversionSettings() {
+        UserDefaults.standard.set(conversionCategory.rawValue, forKey: Self.conversionCategoryKey)
+        UserDefaults.standard.set(imageOutputFormat.rawValue, forKey: Self.imageOutputFormatKey)
+        UserDefaults.standard.set(imageConversionQuality, forKey: Self.imageConversionQualityKey)
+        UserDefaults.standard.set(videoOutputFormat.rawValue, forKey: Self.videoOutputFormatKey)
     }
 
     /// Ensure we have access to the output folder before compression

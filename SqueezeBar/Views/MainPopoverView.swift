@@ -18,45 +18,64 @@ struct MainPopoverView: View {
             // Header
             headerView
 
-            // Scrollable content area
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Drop Zone Section
-                    VStack(spacing: DesignTokens.Spacing.md) {
-                        DropZoneView(viewModel: viewModel)
-                            .padding(.horizontal, DesignTokens.Spacing.lg)
+            // Mode tab picker
+            ToySegmentedPicker(
+                selection: $viewModel.appMode,
+                options: AppMode.allCases,
+                label: { $0.rawValue },
+                isDisabled: viewModel.isCompressing || viewModel.isConverting
+            )
+            .padding(.horizontal, DesignTokens.Spacing.lg)
+            .padding(.vertical, DesignTokens.Spacing.sm)
 
-                        // File info
-                        if let fileType = viewModel.fileTypeHint, let fileSize = viewModel.fileSizeString {
-                            fileInfoView(fileType: fileType, fileSize: fileSize)
-                                .transition(.opacity)
-                        }
-
-                        // Status messages
-                        if !viewModel.statusMessage.isEmpty || viewModel.errorMessage != nil {
-                            statusMessageView
+            if viewModel.appMode == .compress {
+                // Scrollable content area
+                ScrollView {
+                    VStack(spacing: 0) {
+                        // Drop Zone Section
+                        VStack(spacing: DesignTokens.Spacing.md) {
+                            DropZoneView(viewModel: viewModel, appMode: viewModel.appMode)
                                 .padding(.horizontal, DesignTokens.Spacing.lg)
-                                .transition(.scale(scale: 0.95).combined(with: .opacity))
+
+                            // File info
+                            if let fileType = viewModel.fileTypeHint, let fileSize = viewModel.fileSizeString {
+                                fileInfoView(fileType: fileType, fileSize: fileSize)
+                                    .transition(.opacity)
+                            }
+
+                            // Status messages
+                            if !viewModel.statusMessage.isEmpty || viewModel.errorMessage != nil {
+                                statusMessageView
+                                    .padding(.horizontal, DesignTokens.Spacing.lg)
+                                    .transition(.scale(scale: 0.95).combined(with: .opacity))
+                            }
                         }
+                        .padding(.vertical, DesignTokens.Spacing.md)
+                        .animation(AnimationConstants.popIn, value: viewModel.droppedFileURL != nil)
+                        .animation(AnimationConstants.popIn, value: viewModel.errorMessage)
+                        .animation(AnimationConstants.popIn, value: viewModel.statusMessage)
+
+                        Divider()
+
+                        // Settings Section
+                        SettingsView(settings: settings)
                     }
-                    .padding(.vertical, DesignTokens.Spacing.md)
-                    .animation(AnimationConstants.popIn, value: viewModel.droppedFileURL != nil)
-                    .animation(AnimationConstants.popIn, value: viewModel.errorMessage)
-                    .animation(AnimationConstants.popIn, value: viewModel.statusMessage)
-
-                    Divider()
-
-                    // Settings Section
-                    SettingsView(settings: settings)
                 }
+
+                Divider()
+
+                // Compress Button
+                compressButtonView
+            } else {
+                conversionPlaceholderView
+
+                Divider()
+
+                // Convert Button
+                convertButtonView
             }
-
-            Divider()
-
-            // Compress Button
-            compressButtonView
         }
-        .frame(width: 400, height: 580)
+        .frame(width: 400, height: 640)
         .onChange(of: viewModel.errorMessage) { newValue in
             if newValue != nil {
                 shakeError = true
@@ -191,6 +210,54 @@ struct MainPopoverView: View {
             x: DesignTokens.Shadow.toy.x,
             y: DesignTokens.Shadow.toy.y
         )
+    }
+
+    // MARK: - Conversion Placeholder
+
+    private var conversionPlaceholderView: some View {
+        VStack(spacing: DesignTokens.Spacing.md) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 36, weight: .semibold))
+                .foregroundStyle(DesignTokens.Candy.lavender)
+            Text("Conversion coming soon")
+                .font(DesignTokens.Typography.heading)
+                .foregroundStyle(Color.primary)
+            Text("Format conversion will be available in a future update.")
+                .font(DesignTokens.Typography.caption)
+                .foregroundStyle(Color.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(DesignTokens.Spacing.lg)
+    }
+
+    // MARK: - Convert Button
+
+    private var convertButtonView: some View {
+        Button(action: {
+            HapticManager.shared.medium()
+            Task {
+                await viewModel.convertFile(settings: settings)
+            }
+        }) {
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                if viewModel.isConverting {
+                    ProgressView()
+                        .controlSize(.small)
+                        .scaleEffect(0.8)
+                        .tint(.white)
+                } else {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                }
+                Text(viewModel.isConverting ? "Converting..." : "Convert File")
+            }
+        }
+        .buttonStyle(ToyButtonStyle())
+        .disabled(viewModel.droppedFileURL == nil || settings.outputFolderURL == nil || viewModel.isConverting)
+        .hoverScale(1.02)
+        .padding(.horizontal, DesignTokens.Spacing.lg)
+        .padding(.vertical, 10)
+        .background(DesignTokens.cardBackground)
     }
 
     // MARK: - Compress Button
