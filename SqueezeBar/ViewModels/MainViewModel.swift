@@ -245,7 +245,86 @@ class MainViewModel: ObservableObject {
     }
 
     func convertFile(settings: AppSettings) async {
-        // Stub — implemented in Phase 2
+        guard let inputURL = droppedFileURL else { return }
+        guard let outputFolder = settings.outputFolderURL else {
+            errorMessage = "Please choose a save location first"
+            return
+        }
+
+        guard settings.ensureAccess() else {
+            errorMessage = "Cannot access save location. Please choose again."
+            return
+        }
+
+        isConverting = true
+        errorMessage = nil
+        lastConversionResult = nil
+        statusMessage = "Converting..."
+
+        let inputAccessing = inputURL.startAccessingSecurityScopedResource()
+
+        defer {
+            if inputAccessing {
+                inputURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        do {
+            let options = ConversionOptions(
+                imageOutputFormat: settings.imageOutputFormat,
+                imageQuality: settings.imageConversionQuality,
+                videoOutputFormat: settings.videoOutputFormat,
+                pdfPassword: nil
+            )
+
+            let result = try await conversionManager.convert(
+                inputURL: inputURL,
+                outputFolder: outputFolder,
+                category: settings.conversionCategory,
+                options: options
+            )
+
+            lastConversionResult = result
+            statusMessage = "✓ Converted to \(result.outputFormat) (\(byteFormatter.string(fromByteCount: result.outputSize)))"
+            isConverting = false
+
+            resetTask?.cancel()
+            resetTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                guard let self, !Task.isCancelled else { return }
+                self.droppedFileURL = nil
+                self.statusMessage = ""
+                self.lastConversionResult = nil
+                self.fileTypeHint = nil
+                self.fileSizeString = nil
+                self.isCurrentFileVideo = false
+                self.videoFramerate = nil
+            }
+        } catch {
+            errorMessage = formatConversionError(error)
+            statusMessage = ""
+            isConverting = false
+        }
+    }
+
+    func openConversionResultFolder() {
+        guard let result = lastConversionResult else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            NSWorkspace.shared.open(result.outputURL.deletingLastPathComponent())
+        }
+    }
+
+    private func formatConversionError(_ error: Error) -> String {
+        let message = error.localizedDescription
+        if message.contains("No audio track") {
+            return "No audio track found in this video."
+        } else if message.contains("permission") {
+            return "Permission denied. Try selecting a different folder."
+        } else if message.contains("unsupported") {
+            return "This file type is not supported for conversion."
+        } else {
+            return "Conversion failed: \(message)"
+        }
     }
 
     func compressFile(settings: AppSettings) async {

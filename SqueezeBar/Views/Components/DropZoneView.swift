@@ -79,7 +79,7 @@ struct DropZoneView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .disabled(viewModel.isCompressing)
+                .disabled(viewModel.isCompressing || viewModel.isConverting)
                 .padding(10)
                 .hoverScale(1.1)
                 .pressScale(0.9)
@@ -88,21 +88,21 @@ struct DropZoneView: View {
         }
         .contentShape(Rectangle())
         .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
-            if viewModel.isCompressing { return false }
+            if viewModel.isCompressing || viewModel.isConverting { return false }
             let result = viewModel.handleDrop(providers: providers)
             if result { HapticManager.shared.medium() }
             return result
         }
         .onChange(of: isTargeted) { newValue in
             DispatchQueue.main.async {
-                if !viewModel.isCompressing {
+                if !viewModel.isCompressing && !viewModel.isConverting {
                     viewModel.isDragging = newValue
                     if newValue { HapticManager.shared.light() }
                 }
             }
         }
         .onTapGesture {
-            if !viewModel.isCompressing && !viewModel.isDragging && viewModel.droppedFileURL == nil {
+            if !viewModel.isCompressing && !viewModel.isConverting && !viewModel.isDragging && viewModel.droppedFileURL == nil {
                 viewModel.openFilePicker()
             }
         }

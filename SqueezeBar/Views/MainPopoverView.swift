@@ -67,7 +67,38 @@ struct MainPopoverView: View {
                 // Compress Button
                 compressButtonView
             } else {
-                conversionPlaceholderView
+                // Scrollable content area
+                ScrollView {
+                    VStack(spacing: 0) {
+                        // Drop Zone Section
+                        VStack(spacing: DesignTokens.Spacing.md) {
+                            DropZoneView(viewModel: viewModel, appMode: viewModel.appMode)
+                                .padding(.horizontal, DesignTokens.Spacing.lg)
+
+                            // File info
+                            if let fileType = viewModel.fileTypeHint, let fileSize = viewModel.fileSizeString {
+                                fileInfoView(fileType: fileType, fileSize: fileSize)
+                                    .transition(.opacity)
+                            }
+
+                            // Status messages
+                            if !viewModel.statusMessage.isEmpty || viewModel.errorMessage != nil {
+                                conversionStatusMessageView
+                                    .padding(.horizontal, DesignTokens.Spacing.lg)
+                                    .transition(.scale(scale: 0.95).combined(with: .opacity))
+                            }
+                        }
+                        .padding(.vertical, DesignTokens.Spacing.md)
+                        .animation(AnimationConstants.popIn, value: viewModel.droppedFileURL != nil)
+                        .animation(AnimationConstants.popIn, value: viewModel.errorMessage)
+                        .animation(AnimationConstants.popIn, value: viewModel.statusMessage)
+
+                        Divider()
+
+                        // Conversion Settings
+                        ConversionSettingsView(settings: settings)
+                    }
+                }
 
                 Divider()
 
@@ -83,7 +114,7 @@ struct MainPopoverView: View {
             }
         }
         .onChange(of: viewModel.statusMessage) { newValue in
-            if !newValue.isEmpty && !viewModel.isCompressing {
+            if !newValue.isEmpty && !viewModel.isCompressing && !viewModel.isConverting {
                 HapticManager.shared.success()
             }
         }
@@ -140,7 +171,9 @@ struct MainPopoverView: View {
                 errorView(message: error)
                     .shake(trigger: $shakeError)
             } else if !viewModel.statusMessage.isEmpty {
-                successView(message: viewModel.statusMessage, isCompressing: viewModel.isCompressing)
+                successView(message: viewModel.statusMessage, isInProgress: viewModel.isCompressing, hasResult: viewModel.lastResult != nil) {
+                    viewModel.openResultFolder()
+                }
             }
         }
     }
@@ -166,9 +199,9 @@ struct MainPopoverView: View {
         )
     }
 
-    private func successView(message: String, isCompressing: Bool) -> some View {
+    private func successView(message: String, isInProgress: Bool, hasResult: Bool, onOpenFolder: (() -> Void)? = nil) -> some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            if isCompressing {
+            if isInProgress {
                 ProgressView()
                     .controlSize(.small)
                     .scaleEffect(0.7)
@@ -180,18 +213,20 @@ struct MainPopoverView: View {
             }
             Text(message)
                 .font(DesignTokens.Typography.caption)
-                .foregroundStyle(isCompressing ? Color.secondary : DesignTokens.Candy.mint)
+                .foregroundStyle(isInProgress ? Color.secondary : DesignTokens.Candy.mint)
             Spacer()
 
-            if !isCompressing && viewModel.lastResult != nil {
-                Button(action: { viewModel.openResultFolder() }) {
-                    Text("Open Folder")
-                        .font(DesignTokens.Typography.tiny)
-                        .foregroundStyle(DesignTokens.Candy.blue)
+            if !isInProgress && hasResult {
+                if let openFolder = onOpenFolder {
+                    Button(action: openFolder) {
+                        Text("Open Folder")
+                            .font(DesignTokens.Typography.tiny)
+                            .foregroundStyle(DesignTokens.Candy.blue)
+                    }
+                    .buttonStyle(.plain)
+                    .hoverScale(1.05)
                 }
-                .buttonStyle(.plain)
-                .hoverScale(1.05)
-                
+
                 Button(action: { viewModel.removeAttachedFile() }) {
                     Text("Close")
                         .font(DesignTokens.Typography.tiny)
@@ -202,7 +237,7 @@ struct MainPopoverView: View {
             }
         }
         .padding(10)
-        .background(isCompressing ? DesignTokens.Candy.blue.opacity(0.08) : DesignTokens.Candy.mint.opacity(0.1))
+        .background(isInProgress ? DesignTokens.Candy.blue.opacity(0.08) : DesignTokens.Candy.mint.opacity(0.1))
         .clipShape(RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.medium))
         .shadow(
             color: DesignTokens.Shadow.toy.color,
@@ -212,23 +247,19 @@ struct MainPopoverView: View {
         )
     }
 
-    // MARK: - Conversion Placeholder
+    // MARK: - Conversion Status Message
 
-    private var conversionPlaceholderView: some View {
-        VStack(spacing: DesignTokens.Spacing.md) {
-            Image(systemName: "arrow.triangle.2.circlepath")
-                .font(.system(size: 36, weight: .semibold))
-                .foregroundStyle(DesignTokens.Candy.lavender)
-            Text("Conversion coming soon")
-                .font(DesignTokens.Typography.heading)
-                .foregroundStyle(Color.primary)
-            Text("Format conversion will be available in a future update.")
-                .font(DesignTokens.Typography.caption)
-                .foregroundStyle(Color.secondary)
-                .multilineTextAlignment(.center)
+    private var conversionStatusMessageView: some View {
+        Group {
+            if let error = viewModel.errorMessage {
+                errorView(message: error)
+                    .shake(trigger: $shakeError)
+            } else if !viewModel.statusMessage.isEmpty {
+                successView(message: viewModel.statusMessage, isInProgress: viewModel.isConverting, hasResult: viewModel.lastConversionResult != nil) {
+                    viewModel.openConversionResultFolder()
+                }
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(DesignTokens.Spacing.lg)
     }
 
     // MARK: - Convert Button

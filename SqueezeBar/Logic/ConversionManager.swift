@@ -8,7 +8,15 @@ import UniformTypeIdentifiers
 
 @MainActor
 class ConversionManager {
-    private var strategies: [ConversionCategory: ConversionStrategy] = [:]  // populated in Phase 2/3
+    private var strategies: [ConversionCategory: ConversionStrategy]
+
+    init() {
+        strategies = [
+            .imageToImage: ImageFormatConverter(),
+            .videoToVideo: VideoFormatConverter(),
+            .videoToAudio: VideoToAudioConverter()
+        ]
+    }
 
     func convert(
         inputURL: URL,

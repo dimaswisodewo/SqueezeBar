@@ -358,7 +358,7 @@ struct SettingsView: View {
 
 // MARK: - Section Header
 
-private struct SectionHeader: View {
+struct SectionHeader: View {
     let icon: String
     let title: String
 
