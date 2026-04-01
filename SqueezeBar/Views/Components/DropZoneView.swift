@@ -11,7 +11,20 @@ import UniformTypeIdentifiers
 struct DropZoneView: View {
     @ObservedObject var viewModel: MainViewModel
     var appMode: AppMode = .compress
+    var conversionCategory: ConversionCategory? = nil
     @State private var isTargeted = false
+
+    private var isImageToPDF: Bool {
+        appMode == .convert && conversionCategory == .imageToPDF
+    }
+
+    private var isPDFProtect: Bool {
+        appMode == .convert && conversionCategory == .pdfProtect
+    }
+
+    private var hasFiles: Bool {
+        isImageToPDF ? !viewModel.droppedFileURLs.isEmpty : viewModel.droppedFileURL != nil
+    }
 
     var body: some View {
         VStack(spacing: DesignTokens.Spacing.md) {
@@ -43,11 +56,19 @@ struct DropZoneView: View {
             }
 
             // Supported formats as pill badges
-            if viewModel.droppedFileURL == nil && !viewModel.isDragging {
+            if !hasFiles && !viewModel.isDragging {
                 HStack(spacing: DesignTokens.Spacing.xs) {
-                    FormatPill("PDF",    color: DesignTokens.Candy.coral)
-                    FormatPill("Images", color: DesignTokens.Candy.blue)
-                    FormatPill("Videos", color: DesignTokens.Candy.lavender)
+                    if isImageToPDF {
+                        FormatPill("PNG",  color: DesignTokens.Candy.blue)
+                        FormatPill("JPEG", color: DesignTokens.Candy.blue)
+                        FormatPill("HEIC", color: DesignTokens.Candy.blue)
+                    } else if isPDFProtect {
+                        FormatPill("PDF", color: DesignTokens.Candy.coral)
+                    } else {
+                        FormatPill("PDF",    color: DesignTokens.Candy.coral)
+                        FormatPill("Images", color: DesignTokens.Candy.blue)
+                        FormatPill("Videos", color: DesignTokens.Candy.lavender)
+                    }
                 }
                 .padding(.top, 2)
                 .transition(.opacity.combined(with: .scale(scale: 0.9)))
@@ -64,7 +85,7 @@ struct DropZoneView: View {
         )
         .overlay(alignment: .topTrailing) {
             // Remove button — only show when a file is attached
-            if viewModel.droppedFileURL != nil {
+            if hasFiles {
                 Button(action: {
                     HapticManager.shared.light()
                     viewModel.removeAttachedFile()
@@ -89,7 +110,12 @@ struct DropZoneView: View {
         .contentShape(Rectangle())
         .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in
             if viewModel.isCompressing || viewModel.isConverting { return false }
-            let result = viewModel.handleDrop(providers: providers)
+            let result: Bool
+            if isImageToPDF {
+                result = viewModel.handleMultiDrop(providers: providers)
+            } else {
+                result = viewModel.handleDrop(providers: providers)
+            }
             if result { HapticManager.shared.medium() }
             return result
         }
@@ -102,11 +128,14 @@ struct DropZoneView: View {
             }
         }
         .onTapGesture {
-            if !viewModel.isCompressing && !viewModel.isConverting && !viewModel.isDragging && viewModel.droppedFileURL == nil {
+            guard !viewModel.isCompressing && !viewModel.isConverting && !viewModel.isDragging else { return }
+            if isImageToPDF {
+                openMultiImagePicker()
+            } else if !hasFiles {
                 viewModel.openFilePicker()
             }
         }
-        .animation(AnimationConstants.stateTransition, value: viewModel.droppedFileURL != nil)
+        .animation(AnimationConstants.stateTransition, value: hasFiles)
         .animation(AnimationConstants.stateTransition, value: viewModel.isDragging)
     }
 
@@ -115,8 +144,8 @@ struct DropZoneView: View {
     private var iconName: String {
         if viewModel.isDragging {
             return "arrow.down.circle.fill"
-        } else if viewModel.droppedFileURL != nil {
-            return "checkmark.seal.fill"
+        } else if hasFiles {
+            return isImageToPDF ? "doc.richtext.fill" : "checkmark.seal.fill"
         } else {
             return "arrow.down.doc.fill"
         }
@@ -125,7 +154,7 @@ struct DropZoneView: View {
     private var iconColor: Color {
         if viewModel.isDragging {
             return DesignTokens.Candy.pink
-        } else if viewModel.droppedFileURL != nil {
+        } else if hasFiles {
             return DesignTokens.Candy.mint
         } else {
             return DesignTokens.Candy.blue
@@ -135,7 +164,7 @@ struct DropZoneView: View {
     private var iconBackgroundColor: Color {
         if viewModel.isDragging {
             return DesignTokens.Candy.pink.opacity(0.15)
-        } else if viewModel.droppedFileURL != nil {
+        } else if hasFiles {
             return DesignTokens.Candy.mint.opacity(0.15)
         } else {
             return DesignTokens.Candy.blue.opacity(0.1)
@@ -145,7 +174,7 @@ struct DropZoneView: View {
     private var backgroundColor: Color {
         if viewModel.isDragging {
             return DesignTokens.Candy.pink.opacity(0.07)
-        } else if viewModel.droppedFileURL != nil {
+        } else if hasFiles {
             return DesignTokens.Candy.mint.opacity(0.06)
         } else {
             return DesignTokens.Candy.blue.opacity(0.04)
@@ -155,7 +184,7 @@ struct DropZoneView: View {
     private var borderColor: Color {
         if viewModel.isDragging {
             return DesignTokens.Candy.pink
-        } else if viewModel.droppedFileURL != nil {
+        } else if hasFiles {
             return DesignTokens.Candy.mint.opacity(0.6)
         } else {
             return DesignTokens.Candy.blue.opacity(0.25)
@@ -165,8 +194,13 @@ struct DropZoneView: View {
     private var mainMessage: String {
         if viewModel.isDragging {
             return "Let it go!"
+        } else if isImageToPDF && !viewModel.droppedFileURLs.isEmpty {
+            let count = viewModel.droppedFileURLs.count
+            return "\(count) image\(count == 1 ? "" : "s") selected"
         } else if viewModel.droppedFileURL != nil {
             return viewModel.droppedFileURL?.lastPathComponent ?? "File ready"
+        } else if isImageToPDF {
+            return "Drop images to combine"
         } else {
             return "Drop a file to squeeze!"
         }
@@ -175,10 +209,38 @@ struct DropZoneView: View {
     private var subtitleMessage: String? {
         if viewModel.isDragging {
             return "Release to add file"
+        } else if isImageToPDF && !viewModel.droppedFileURLs.isEmpty {
+            return "Drop more or click Convert"
+        } else if isImageToPDF {
+            return "Drop multiple or click to browse"
         } else if viewModel.droppedFileURL != nil {
             return appMode == .compress ? "Ready to squeeze" : "Ready to convert"
         } else {
             return "or click to browse"
+        }
+    }
+
+    private func openMultiImagePicker() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.message = "Choose images to combine into a PDF"
+        panel.prompt = "Select"
+        panel.allowedContentTypes = [.image, .png, .jpeg, .heic, .bmp, .tiff]
+
+        if panel.runModal() == .OK {
+            let urls = panel.urls
+            DispatchQueue.main.async {
+                for url in urls {
+                    if !self.viewModel.droppedFileURLs.contains(url) {
+                        self.viewModel.droppedFileURLs.append(url)
+                    }
+                }
+                if self.viewModel.droppedFileURL == nil {
+                    self.viewModel.droppedFileURL = self.viewModel.droppedFileURLs.first
+                }
+            }
         }
     }
 }

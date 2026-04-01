@@ -29,6 +29,7 @@ class MainViewModel: ObservableObject {
     @Published var appMode: AppMode = .compress
     @Published var isConverting: Bool = false
     @Published var lastConversionResult: ConversionResult?
+    @Published var droppedFileURLs: [URL] = []
 
     private let compressionManager = CompressionManager()
     private let conversionManager = ConversionManager()
@@ -103,6 +104,54 @@ class MainViewModel: ObservableObject {
         }
 
         return true
+    }
+
+    func handleMultiDrop(providers: [NSItemProvider]) -> Bool {
+        guard !providers.isEmpty else { return false }
+
+        for provider in providers {
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { [weak self] item, error in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    guard error == nil,
+                          let data = item as? Data,
+                          let url = URL(dataRepresentation: data, relativeTo: nil) else { return }
+
+                    self.resetTask?.cancel()
+                    self.resetTask = nil
+
+                    if !self.droppedFileURLs.contains(url) {
+                        self.droppedFileURLs.append(url)
+                    }
+
+                    // Keep droppedFileURL pointing to the first file for display
+                    if self.droppedFileURL == nil {
+                        self.droppedFileURL = url
+                        let ext = url.pathExtension.uppercased()
+                        self.fileTypeHint = ext.isEmpty ? nil : ext
+                        if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
+                            self.fileSizeString = self.byteFormatter.string(fromByteCount: Int64(size))
+                        }
+                    }
+
+                    self.statusMessage = ""
+                    self.errorMessage = nil
+                }
+            }
+        }
+
+        return true
+    }
+
+    func removeFileFromList(_ url: URL) {
+        droppedFileURLs.removeAll { $0 == url }
+        if droppedFileURLs.isEmpty {
+            droppedFileURL = nil
+            fileTypeHint = nil
+            fileSizeString = nil
+        } else if droppedFileURL == url {
+            droppedFileURL = droppedFileURLs.first
+        }
     }
 
     func handleFileOpen(url: URL) {
@@ -203,6 +252,7 @@ class MainViewModel: ObservableObject {
         resetTask?.cancel()
         resetTask = nil
         droppedFileURL = nil
+        droppedFileURLs = []
         statusMessage = ""
         errorMessage = nil
         fileTypeHint = nil
@@ -245,7 +295,6 @@ class MainViewModel: ObservableObject {
     }
 
     func convertFile(settings: AppSettings) async {
-        guard let inputURL = droppedFileURL else { return }
         guard let outputFolder = settings.outputFolderURL else {
             errorMessage = "Please choose a save location first"
             return
@@ -255,6 +304,54 @@ class MainViewModel: ObservableObject {
             errorMessage = "Cannot access save location. Please choose again."
             return
         }
+
+        // imageToPDF uses multi-file input
+        if settings.conversionCategory == .imageToPDF {
+            guard !droppedFileURLs.isEmpty else { return }
+
+            isConverting = true
+            errorMessage = nil
+            lastConversionResult = nil
+            statusMessage = "Creating PDF..."
+
+            let accessedURLs = droppedFileURLs.filter { $0.startAccessingSecurityScopedResource() }
+
+            defer {
+                for url in accessedURLs {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            do {
+                let result = try await conversionManager.convertImagesToPDF(
+                    inputURLs: droppedFileURLs,
+                    outputFolder: outputFolder
+                )
+
+                lastConversionResult = result
+                statusMessage = "✓ Created PDF (\(byteFormatter.string(fromByteCount: result.outputSize)))"
+                isConverting = false
+
+                resetTask?.cancel()
+                resetTask = Task { [weak self] in
+                    try? await Task.sleep(nanoseconds: 2_500_000_000)
+                    guard let self, !Task.isCancelled else { return }
+                    self.droppedFileURL = nil
+                    self.droppedFileURLs = []
+                    self.statusMessage = ""
+                    self.lastConversionResult = nil
+                    self.fileTypeHint = nil
+                    self.fileSizeString = nil
+                }
+            } catch {
+                errorMessage = formatConversionError(error)
+                statusMessage = ""
+                isConverting = false
+            }
+            return
+        }
+
+        guard let inputURL = droppedFileURL else { return }
 
         isConverting = true
         errorMessage = nil
@@ -274,7 +371,7 @@ class MainViewModel: ObservableObject {
                 imageOutputFormat: settings.imageOutputFormat,
                 imageQuality: settings.imageConversionQuality,
                 videoOutputFormat: settings.videoOutputFormat,
-                pdfPassword: nil
+                pdfPassword: settings.conversionCategory == .pdfProtect ? settings.pdfPassword : nil
             )
 
             let result = try await conversionManager.convert(

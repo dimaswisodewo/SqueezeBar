@@ -72,11 +72,16 @@ struct MainPopoverView: View {
                     VStack(spacing: 0) {
                         // Drop Zone Section
                         VStack(spacing: DesignTokens.Spacing.md) {
-                            DropZoneView(viewModel: viewModel, appMode: viewModel.appMode)
+                            DropZoneView(viewModel: viewModel, appMode: viewModel.appMode, conversionCategory: settings.conversionCategory)
                                 .padding(.horizontal, DesignTokens.Spacing.lg)
 
-                            // File info
-                            if let fileType = viewModel.fileTypeHint, let fileSize = viewModel.fileSizeString {
+                            // File info — show count for imageToPDF, single file info otherwise
+                            if settings.conversionCategory == .imageToPDF {
+                                if !viewModel.droppedFileURLs.isEmpty {
+                                    fileInfoView(fileType: "Images", fileSize: "\(viewModel.droppedFileURLs.count) file\(viewModel.droppedFileURLs.count == 1 ? "" : "s")")
+                                        .transition(.opacity)
+                                }
+                            } else if let fileType = viewModel.fileTypeHint, let fileSize = viewModel.fileSizeString {
                                 fileInfoView(fileType: fileType, fileSize: fileSize)
                                     .transition(.opacity)
                             }
@@ -278,17 +283,53 @@ struct MainPopoverView: View {
                         .scaleEffect(0.8)
                         .tint(.white)
                 } else {
-                    Image(systemName: "arrow.triangle.2.circlepath")
+                    Image(systemName: convertButtonIcon)
                 }
-                Text(viewModel.isConverting ? "Converting..." : "Convert File")
+                Text(convertButtonLabel)
             }
         }
         .buttonStyle(ToyButtonStyle())
-        .disabled(viewModel.droppedFileURL == nil || settings.outputFolderURL == nil || viewModel.isConverting)
+        .disabled(convertButtonDisabled)
         .hoverScale(1.02)
         .padding(.horizontal, DesignTokens.Spacing.lg)
         .padding(.vertical, 10)
         .background(DesignTokens.cardBackground)
+    }
+
+    private var convertButtonIcon: String {
+        switch settings.conversionCategory {
+        case .imageToPDF: return "doc.richtext"
+        case .pdfProtect: return "lock.fill"
+        default: return "arrow.triangle.2.circlepath"
+        }
+    }
+
+    private var convertButtonLabel: String {
+        if viewModel.isConverting {
+            switch settings.conversionCategory {
+            case .imageToPDF: return "Creating PDF..."
+            case .pdfProtect: return "Protecting..."
+            default: return "Converting..."
+            }
+        } else {
+            switch settings.conversionCategory {
+            case .imageToPDF: return "Create PDF"
+            case .pdfProtect: return "Protect PDF"
+            default: return "Convert File"
+            }
+        }
+    }
+
+    private var convertButtonDisabled: Bool {
+        guard !viewModel.isConverting, settings.outputFolderURL != nil else { return true }
+        switch settings.conversionCategory {
+        case .imageToPDF:
+            return viewModel.droppedFileURLs.isEmpty
+        case .pdfProtect:
+            return viewModel.droppedFileURL == nil || !settings.isPdfPasswordValid
+        default:
+            return viewModel.droppedFileURL == nil
+        }
     }
 
     // MARK: - Compress Button

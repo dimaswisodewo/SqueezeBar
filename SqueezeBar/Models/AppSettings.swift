@@ -56,6 +56,14 @@ class AppSettings: ObservableObject {
     @Published var imageConversionQuality: Double = 0.85
     @Published var videoOutputFormat: VideoOutputFormat = .mp4
 
+    // MARK: - PDF Password (ephemeral, NOT persisted to UserDefaults)
+    @Published var pdfPassword: String = ""
+    @Published var pdfPasswordConfirm: String = ""
+
+    var isPdfPasswordValid: Bool {
+        !pdfPassword.isEmpty && pdfPassword == pdfPasswordConfirm
+    }
+
     private static let bookmarkKey = "outputFolderBookmark"
     private static let enableFramerateReductionKey = "enableFramerateReduction"
     private static let targetFramerateKey = "targetFramerate"

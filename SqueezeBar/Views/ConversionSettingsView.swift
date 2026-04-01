@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ConversionSettingsView: View {
     @ObservedObject var settings: AppSettings
@@ -14,7 +15,7 @@ struct ConversionSettingsView: View {
     @State private var imageConversionQuality: Double
     @State private var videoOutputFormat: VideoOutputFormat
 
-    private let phase2Categories: [ConversionCategory] = [.imageToImage, .videoToVideo, .videoToAudio]
+    private let availableCategories: [ConversionCategory] = ConversionCategory.allCases
 
     init(settings: AppSettings) {
         self.settings = settings
@@ -32,7 +33,7 @@ struct ConversionSettingsView: View {
 
                 ToySegmentedPicker(
                     selection: $conversionCategory,
-                    options: phase2Categories,
+                    options: availableCategories,
                     label: { $0.rawValue },
                     isDisabled: viewModel.isConverting
                 )
@@ -52,8 +53,10 @@ struct ConversionSettingsView: View {
                 videoConversionControls
             case .videoToAudio:
                 audioExtractionInfo
-            case .imageToPDF, .pdfProtect:
-                comingSoonPlaceholder
+            case .imageToPDF:
+                imageToPDFControls
+            case .pdfProtect:
+                pdfProtectControls
             }
 
             Divider()
@@ -160,21 +163,112 @@ struct ConversionSettingsView: View {
         .clipShape(RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small))
     }
 
-    // MARK: - Coming Soon Placeholder
+    // MARK: - Image to PDF Controls
 
-    private var comingSoonPlaceholder: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
-            Image(systemName: "clock")
-                .font(.system(size: 13))
-                .foregroundStyle(Color.secondary)
-            Text("Coming in a future update")
-                .font(DesignTokens.Typography.caption)
-                .foregroundStyle(Color.secondary)
-            Spacer()
+    private var imageToPDFControls: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            // Info banner
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                Image(systemName: "doc.richtext")
+                    .font(.system(size: 13))
+                    .foregroundStyle(DesignTokens.Candy.coral)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Combines images into a single PDF")
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundStyle(DesignTokens.Candy.coral)
+                    Text("Pages sized to A4, images centered")
+                        .font(DesignTokens.Typography.tiny)
+                        .foregroundStyle(DesignTokens.Candy.coral.opacity(0.7))
+                }
+                Spacer()
+            }
+            .padding(DesignTokens.Spacing.sm)
+            .background(DesignTokens.Candy.coral.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small))
+
+            // File list
+            if !viewModel.droppedFileURLs.isEmpty {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                    Text("\(viewModel.droppedFileURLs.count) image\(viewModel.droppedFileURLs.count == 1 ? "" : "s") added")
+                        .font(DesignTokens.Typography.tiny)
+                        .foregroundStyle(Color.secondary)
+
+                    ForEach(viewModel.droppedFileURLs, id: \.absoluteString) { url in
+                        HStack(spacing: DesignTokens.Spacing.xs) {
+                            Image(systemName: "photo")
+                                .font(.system(size: 10))
+                                .foregroundStyle(DesignTokens.Candy.blue)
+                            Text(url.lastPathComponent)
+                                .font(DesignTokens.Typography.tiny)
+                                .foregroundStyle(Color.primary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer()
+                            Button(action: {
+                                viewModel.removeFileFromList(url)
+                            }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 8, weight: .bold))
+                                    .foregroundStyle(DesignTokens.Candy.coral)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(viewModel.isConverting)
+                        }
+                        .padding(.horizontal, DesignTokens.Spacing.sm)
+                        .padding(.vertical, 4)
+                        .background(DesignTokens.Candy.blue.opacity(0.05))
+                        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small))
+                    }
+                }
+            }
+
+            // Add More Files button
+            Button(action: addMoreImages) {
+                HStack(spacing: DesignTokens.Spacing.xs) {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: 11))
+                    Text("Add More Files")
+                        .font(DesignTokens.Typography.caption)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 30)
+                .foregroundStyle(DesignTokens.Candy.blue)
+                .background(DesignTokens.Candy.blue.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small))
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.isConverting)
+            .hoverScale(1.02)
         }
-        .padding(DesignTokens.Spacing.sm)
-        .background(Color.secondary.opacity(0.07))
-        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small))
+    }
+
+    // MARK: - PDF Protect Controls
+
+    private var pdfProtectControls: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            SectionHeader(icon: "lock.fill", title: "Password Protection")
+
+            SecureField("Password", text: $settings.pdfPassword)
+                .textFieldStyle(.roundedBorder)
+                .font(DesignTokens.Typography.body)
+                .disabled(viewModel.isConverting)
+
+            SecureField("Confirm Password", text: $settings.pdfPasswordConfirm)
+                .textFieldStyle(.roundedBorder)
+                .font(DesignTokens.Typography.body)
+                .disabled(viewModel.isConverting)
+
+            if !settings.pdfPassword.isEmpty && settings.pdfPassword != settings.pdfPasswordConfirm {
+                HStack(spacing: DesignTokens.Spacing.xs) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(DesignTokens.Candy.coral)
+                    Text("Passwords do not match")
+                        .font(DesignTokens.Typography.tiny)
+                        .foregroundStyle(DesignTokens.Candy.coral)
+                }
+            }
+        }
     }
 
     // MARK: - Output Folder Section
@@ -275,6 +369,30 @@ struct ConversionSettingsView: View {
             let selectedURL = panel.url
             DispatchQueue.main.async {
                 settings.outputFolderURL = selectedURL
+            }
+        }
+    }
+
+    private func addMoreImages() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        panel.message = "Choose images to add"
+        panel.prompt = "Add"
+        panel.allowedContentTypes = [.image, .png, .jpeg, .heic, .bmp, .tiff]
+
+        if panel.runModal() == .OK {
+            let urls = panel.urls
+            DispatchQueue.main.async {
+                for url in urls {
+                    if !self.viewModel.droppedFileURLs.contains(url) {
+                        self.viewModel.droppedFileURLs.append(url)
+                    }
+                }
+                if self.viewModel.droppedFileURL == nil {
+                    self.viewModel.droppedFileURL = self.viewModel.droppedFileURLs.first
+                }
             }
         }
     }
