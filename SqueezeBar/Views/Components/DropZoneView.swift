@@ -59,11 +59,24 @@ struct DropZoneView: View {
             if !hasFiles && !viewModel.isDragging {
                 HStack(spacing: DesignTokens.Spacing.xs) {
                     if isImageToPDF {
+                        FormatPill("JPG",  color: DesignTokens.Candy.blue)
                         FormatPill("PNG",  color: DesignTokens.Candy.blue)
-                        FormatPill("JPEG", color: DesignTokens.Candy.blue)
                         FormatPill("HEIC", color: DesignTokens.Candy.blue)
                     } else if isPDFProtect {
                         FormatPill("PDF", color: DesignTokens.Candy.coral)
+                    } else if appMode == .convert && conversionCategory == .imageToImage {
+                        FormatPill("JPG",  color: DesignTokens.Candy.blue)
+                        FormatPill("PNG",  color: DesignTokens.Candy.blue)
+                        FormatPill("HEIC", color: DesignTokens.Candy.blue)
+                        FormatPill("TIFF", color: DesignTokens.Candy.blue)
+                        FormatPill("BMP",  color: DesignTokens.Candy.blue)
+                    } else if appMode == .convert && conversionCategory == .videoToVideo {
+                        FormatPill("MP4", color: DesignTokens.Candy.lavender)
+                        FormatPill("MOV", color: DesignTokens.Candy.lavender)
+                        FormatPill("M4V", color: DesignTokens.Candy.lavender)
+                    } else if appMode == .convert && conversionCategory == .videoToAudio {
+                        FormatPill("MP4", color: DesignTokens.Candy.lavender)
+                        FormatPill("MOV", color: DesignTokens.Candy.lavender)
                     } else {
                         FormatPill("PDF",    color: DesignTokens.Candy.coral)
                         FormatPill("Images", color: DesignTokens.Candy.blue)

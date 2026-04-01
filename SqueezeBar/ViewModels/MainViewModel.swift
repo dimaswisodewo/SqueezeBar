@@ -30,6 +30,7 @@ class MainViewModel: ObservableObject {
     @Published var isConverting: Bool = false
     @Published var lastConversionResult: ConversionResult?
     @Published var droppedFileURLs: [URL] = []
+    @Published var suggestedConversionCategory: ConversionCategory?
 
     private let compressionManager = CompressionManager()
     private let conversionManager = ConversionManager()
@@ -208,6 +209,17 @@ class MainViewModel: ObservableObject {
             videoFramerate = nil
         }
 
+        // Auto-suggest conversion category when in Convert tab
+        if appMode == .convert, let contentType = contentType {
+            if contentType.conforms(to: .image) {
+                suggestedConversionCategory = .imageToImage
+            } else if contentType.conforms(to: .movie) || contentType.conforms(to: .video) {
+                suggestedConversionCategory = .videoToVideo
+            } else if contentType.conforms(to: .pdf) {
+                suggestedConversionCategory = .pdfProtect
+            }
+        }
+
         // Update file info
         let ext = url.pathExtension.uppercased()
         fileTypeHint = ext.isEmpty ? nil : ext
@@ -259,6 +271,7 @@ class MainViewModel: ObservableObject {
         fileSizeString = nil
         isCurrentFileVideo = false
         videoFramerate = nil
+        suggestedConversionCategory = nil
     }
   
     func removeAttachedFileWithoutResetingStatusMessage() {
@@ -286,11 +299,10 @@ class MainViewModel: ObservableObject {
     }
 
     func openResultFolder() {
-        guard let result = lastResult else { return }
-
+        let url = lastResult?.compressedURL ?? lastConversionResult?.outputURL
+        guard let folder = url?.deletingLastPathComponent() else { return }
         DispatchQueue.global(qos: .userInitiated).async {
-            let folderURL = result.compressedURL.deletingLastPathComponent()
-            NSWorkspace.shared.open(folderURL)
+            NSWorkspace.shared.open(folder)
         }
     }
 
@@ -404,24 +416,18 @@ class MainViewModel: ObservableObject {
         }
     }
 
-    func openConversionResultFolder() {
-        guard let result = lastConversionResult else { return }
-        DispatchQueue.global(qos: .userInitiated).async {
-            NSWorkspace.shared.open(result.outputURL.deletingLastPathComponent())
-        }
-    }
-
     private func formatConversionError(_ error: Error) -> String {
-        let message = error.localizedDescription
-        if message.contains("No audio track") {
-            return "No audio track found in this video."
-        } else if message.contains("permission") {
-            return "Permission denied. Try selecting a different folder."
-        } else if message.contains("unsupported") {
-            return "This file type is not supported for conversion."
-        } else {
-            return "Conversion failed: \(message)"
+        if let convError = error as? ConversionError {
+            switch convError {
+            case .unsupportedFileType: return "File type not supported for this conversion."
+            case .fileNotFound: return "Input file not found."
+            case .conversionFailed(let msg): return msg
+            case .outputFolderNotSet: return "Please select an output folder."
+            case .invalidOptions: return "Invalid conversion options."
+            case .passwordMismatch: return "Passwords do not match."
+            }
         }
+        return error.localizedDescription
     }
 
     func compressFile(settings: AppSettings) async {

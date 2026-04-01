@@ -123,6 +123,13 @@ struct MainPopoverView: View {
                 HapticManager.shared.success()
             }
         }
+        .onChange(of: viewModel.suggestedConversionCategory) { newValue in
+            if let category = newValue {
+                settings.conversionCategory = category
+                settings.saveConversionSettings()
+                viewModel.suggestedConversionCategory = nil
+            }
+        }
     }
 
     // MARK: - Header
@@ -261,7 +268,7 @@ struct MainPopoverView: View {
                     .shake(trigger: $shakeError)
             } else if !viewModel.statusMessage.isEmpty {
                 successView(message: viewModel.statusMessage, isInProgress: viewModel.isConverting, hasResult: viewModel.lastConversionResult != nil) {
-                    viewModel.openConversionResultFolder()
+                    viewModel.openResultFolder()
                 }
             }
         }
@@ -289,7 +296,7 @@ struct MainPopoverView: View {
             }
         }
         .buttonStyle(ToyButtonStyle())
-        .disabled(convertButtonDisabled)
+        .disabled(!canProceed)
         .hoverScale(1.02)
         .padding(.horizontal, DesignTokens.Spacing.lg)
         .padding(.vertical, 10)
@@ -320,15 +327,20 @@ struct MainPopoverView: View {
         }
     }
 
-    private var convertButtonDisabled: Bool {
-        guard !viewModel.isConverting, settings.outputFolderURL != nil else { return true }
-        switch settings.conversionCategory {
-        case .imageToPDF:
-            return viewModel.droppedFileURLs.isEmpty
-        case .pdfProtect:
-            return viewModel.droppedFileURL == nil || !settings.isPdfPasswordValid
-        default:
-            return viewModel.droppedFileURL == nil
+    private var canProceed: Bool {
+        guard settings.outputFolderURL != nil else { return false }
+        guard !viewModel.isCompressing && !viewModel.isConverting else { return false }
+        if viewModel.appMode == .compress {
+            return viewModel.droppedFileURL != nil
+        } else {
+            switch settings.conversionCategory {
+            case .imageToPDF:
+                return !viewModel.droppedFileURLs.isEmpty
+            case .pdfProtect:
+                return viewModel.droppedFileURL != nil && settings.isPdfPasswordValid
+            default:
+                return viewModel.droppedFileURL != nil
+            }
         }
     }
 
@@ -354,7 +366,7 @@ struct MainPopoverView: View {
             }
         }
         .buttonStyle(ToyButtonStyle())
-        .disabled(viewModel.droppedFileURL == nil || settings.outputFolderURL == nil || viewModel.isCompressing)
+        .disabled(!canProceed)
         .hoverScale(1.02)
         .padding(.horizontal, DesignTokens.Spacing.lg)
         .padding(.vertical, 10)
