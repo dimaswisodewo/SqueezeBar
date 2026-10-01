@@ -54,6 +54,7 @@ struct SettingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .foregroundStyle(DesignTokens.Colors.ink)
         .background(DesignTokens.Colors.canvas)
+        .font(DesignTokens.Typography.body)
     }
 
     // MARK: - Quality Controls
@@ -79,7 +80,7 @@ struct SettingsView: View {
             if compressionQuality == .custom {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                     HStack {
-                        Text("Custom Quality")
+                        Text("Custom quality")
                             .font(DesignTokens.Typography.caption)
                         Spacer()
                         Text("\(Int(customQuality * 100))%")
@@ -108,7 +109,7 @@ struct SettingsView: View {
 
     private var framerateSection: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            SectionHeader(icon: "film", title: "Frame Rate")
+            SectionHeader(icon: "film", title: "Frame rate")
 
             Toggle("Reduce frame rate", isOn: $enableFramerateReduction)
                 .toggleStyle(BrutalistToggleStyle())
@@ -153,7 +154,7 @@ struct SettingsView: View {
                     }
                 }
 
-                Text("Lower framerates reduce file size")
+                Text("Fewer frames per second reduce file size")
                     .font(DesignTokens.Typography.tiny)
                     .foregroundStyle(DesignTokens.Colors.muted)
             }
@@ -187,7 +188,7 @@ struct SectionHeader: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: icon).font(.system(size: 13, weight: .bold))
+            Image(systemName: icon).resizable().scaledToFit().frame(width: 13, height: 13)
                 .accessibilityHidden(true)
             BrutalistSectionLabel(title: title)
         }

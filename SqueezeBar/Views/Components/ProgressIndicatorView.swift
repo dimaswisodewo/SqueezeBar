@@ -25,4 +25,5 @@ struct ProgressIndicatorView: View {
         ProgressIndicatorView(isCompressing: true, message: "Working locally…")
     }
     .padding(20)
+    .font(DesignTokens.Typography.body)
 }

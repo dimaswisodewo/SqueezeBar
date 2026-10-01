@@ -17,17 +17,17 @@ struct DesignSystemGallery: View {
                 HStack(spacing: 12) {
                     BrutalistMark()
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("SQUEEZEBAR").font(DesignTokens.Typography.title)
+                        Text("SqueezeBar").font(DesignTokens.Typography.title)
                         BrutalistSectionLabel(title: "Design system / 01")
                     }
                 }
-                Text("LESS SIZE.\nMORE SPACE.")
+                Text("Start with a file")
                     .font(DesignTokens.Typography.hero).tracking(-0.8)
                 HStack(spacing: 8) {
-                    swatch("INK", color: palette.ink, text: palette.canvas)
-                    swatch("PAPER", color: palette.surface, text: palette.ink)
-                    swatch("LIME", color: palette.accent, text: DesignTokens.Colors.black)
-                    swatch("YELLOW", color: palette.notice, text: DesignTokens.Colors.black)
+                    swatch("Ink", color: palette.ink, text: palette.canvas)
+                    swatch("Paper", color: palette.surface, text: palette.ink)
+                    swatch("Lime", color: palette.accent, text: DesignTokens.Colors.black)
+                    swatch("Yellow", color: palette.notice, text: DesignTokens.Colors.black)
                 }
                 BrutalistPanel {
                     VStack(alignment: .leading, spacing: 16) {
@@ -43,11 +43,11 @@ struct DesignSystemGallery: View {
                 }
                 VStack(alignment: .leading, spacing: 12) {
                     BrutalistSectionLabel(title: "Actions / selection")
-                    BrutalistPrimaryButton(title: "Squeeze file", isDisabled: false) {}
+                    BrutalistPrimaryButton(title: "Compress", isDisabled: false) {}
                     BrutalistPrimaryButton(title: "Disabled action", isDisabled: true) {}
                     BrutalistActionRow(title: "Compress", symbol: "arrow.down.right.and.arrow.up.left",
                                        isSelected: selectedAction) { selectedAction.toggle() }
-                    BrutalistActionRow(title: "Convert format", symbol: "photo",
+                    BrutalistActionRow(title: "Change image format", symbol: "photo",
                                        isSelected: !selectedAction) { selectedAction.toggle() }
                     BrutalistActionRow(title: "Unavailable", symbol: "lock",
                                        isSelected: false, isDisabled: true) {}
@@ -82,7 +82,7 @@ struct DesignSystemGallery: View {
                         .font(DesignTokens.Typography.heading).padding(20)
                 }
                 BrutalistDropSurface(isHighlighted: true) {
-                    Label("DROP IT HERE.", systemImage: "arrow.down.to.line")
+                    Label("Drop files here", systemImage: "arrow.down.to.line")
                         .font(DesignTokens.Typography.heading).padding(20)
                 }
                 ProgressIndicatorView(isCompressing: true, message: "Working locally on your Mac…")
@@ -99,6 +99,7 @@ struct DesignSystemGallery: View {
         .frame(width: DesignTokens.Geometry.popoverWidth, height: 900)
         .foregroundStyle(palette.ink)
         .background(palette.canvas)
+        .font(DesignTokens.Typography.body)
     }
 
     private func swatch(_ title: String, color: Color, text: Color) -> some View {

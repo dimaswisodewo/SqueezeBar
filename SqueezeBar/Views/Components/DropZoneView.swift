@@ -26,10 +26,10 @@ struct DropZoneView: View {
             BrutalistDropSurface(isHighlighted: isHighlighted) {
                 VStack(spacing: 16) {
                     Image(systemName: hasFiles ? "checkmark.square" : "arrow.down.to.line")
-                        .font(.system(size: 28, weight: .bold))
+                        .resizable().scaledToFit().frame(width: 28, height: 28)
                         .accessibilityHidden(true)
                     Text(mainMessage)
-                        .font(DesignTokens.Typography.title)
+                        .font(DesignTokens.Typography.hero)
                         .multilineTextAlignment(.center)
                         .lineLimit(3).truncationMode(.middle)
                     Text(hasFiles ? "Ready to process" : "Drop files or click to browse")
@@ -51,7 +51,7 @@ struct DropZoneView: View {
         .overlay(alignment: .topTrailing) {
             if hasFiles {
                 Button { viewModel.removeAttachedFile() } label: {
-                    Image(systemName: "xmark").font(.system(size: 12, weight: .bold))
+                    Image(systemName: "xmark").resizable().scaledToFit().frame(width: 12, height: 12)
                         .frame(width: 28, height: 28)
                 }
                 .buttonStyle(BrutalistButtonStyle())
@@ -76,10 +76,10 @@ struct DropZoneView: View {
     }
 
     private var mainMessage: String {
-        if isHighlighted { return "DROP IT HERE." }
+        if isHighlighted { return "Drop files here" }
         if isImageToPDF && hasFiles { return "\(viewModel.droppedFileURLs.count) images selected" }
         if let url = viewModel.droppedFileURL { return url.lastPathComponent }
-        return isImageToPDF ? "MAKE ONE PDF." : "DROP. SQUEEZE. DONE."
+        return isImageToPDF ? "Start with a file" : "Start with a file"
     }
 
     private var supportedFormats: [String] {
@@ -118,4 +118,5 @@ struct DropZoneView: View {
 
 #Preview {
     DropZoneView(viewModel: MainViewModel.shared).frame(width: 380).padding(20)
+        .font(DesignTokens.Typography.body)
 }

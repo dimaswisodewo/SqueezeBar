@@ -3,15 +3,24 @@ import CoreText
 
 enum DesignTokens {
     enum Colors {
-        static let black = Color(red: 10 / 255, green: 10 / 255, blue: 10 / 255)
-        static let white = Color.white
-        static let lime = Color(red: 198 / 255, green: 1, blue: 0)
-        static let yellow = Color(red: 245 / 255, green: 1, blue: 0)
+        static let black = color(0x20211D)
+        static let white = color(0xF2F1E9)
+        static let lime = color(0xBCD85F)
+        static let yellow = color(0xE4D879)
 
-        static let canvas = adaptive(light: .white, dark: NSColor(white: 10 / 255, alpha: 1))
-        static let ink = adaptive(light: NSColor(white: 10 / 255, alpha: 1), dark: .white)
-        static let muted = adaptive(light: NSColor(white: 0.36, alpha: 1), dark: NSColor(white: 0.73, alpha: 1))
-        static let inset = adaptive(light: NSColor(white: 0.94, alpha: 1), dark: NSColor(white: 0.12, alpha: 1))
+        static let canvas = adaptive(light: nsColor(0xF2F1E9), dark: nsColor(0x191B17))
+        static let ink = adaptive(light: nsColor(0x20211D), dark: nsColor(0xE5E5DA))
+        static let muted = adaptive(light: nsColor(0x595B50), dark: nsColor(0xB9BCAF))
+        static let inset = adaptive(light: nsColor(0xE8E8DF), dark: nsColor(0x24271F))
+        static let selection = adaptive(light: nsColor(0xE5EBCF), dark: nsColor(0x2A3021))
+
+        fileprivate static func color(_ hex: Int) -> Color { Color(nsColor: nsColor(hex)) }
+
+        private static func nsColor(_ hex: Int) -> NSColor {
+            NSColor(srgbRed: CGFloat((hex >> 16) & 255) / 255,
+                    green: CGFloat((hex >> 8) & 255) / 255,
+                    blue: CGFloat(hex & 255) / 255, alpha: 1)
+        }
 
         private static func adaptive(light: NSColor, dark: NSColor) -> Color {
             Color(nsColor: NSColor(name: nil) { appearance in
@@ -27,27 +36,30 @@ enum DesignTokens {
         let ink: Color
         let muted: Color
         let outline: Color
+        let selection: Color
         let accent = Colors.lime
         let notice = Colors.yellow
 
         init(_ scheme: ColorScheme) {
-            canvas = scheme == .dark ? Colors.black : Colors.white
+            canvas = scheme == .dark ? Colors.color(0x191B17) : Colors.white
             surface = canvas
-            inset = scheme == .dark ? Color(white: 0.12) : Color(white: 0.94)
-            ink = scheme == .dark ? Colors.white : Colors.black
-            muted = scheme == .dark ? Color(white: 0.73) : Color(white: 0.36)
+            inset = scheme == .dark ? Colors.color(0x24271F) : Colors.color(0xE8E8DF)
+            ink = scheme == .dark ? Colors.color(0xE5E5DA) : Colors.black
+            muted = scheme == .dark ? Colors.color(0xB9BCAF) : Colors.color(0x595B50)
             outline = ink
+            selection = scheme == .dark ? Colors.color(0x2A3021) : Colors.color(0xE5EBCF)
         }
     }
 
     enum Typography {
-        static var hero: Font { custom("ArchivoBlack-Regular", size: 28) }
+        static var hero: Font { custom("ArchivoBlack-Regular", size: 24) }
         static var title: Font { custom("ArchivoBlack-Regular", size: 20) }
-        static var heading: Font { custom("IBMPlexSans-SmBld", size: 13) }
-        static var body: Font { custom("IBMPlexSans", size: 13) }
-        static var caption: Font { custom("IBMPlexSans", size: 11) }
-        static var label: Font { custom("IBMPlexMono-Medium", size: 11) }
-        static var metadata: Font { custom("IBMPlexMono-Regular", size: 11) }
+        static var status: Font { custom("ArchivoBlack-Regular", size: 18) }
+        static var heading: Font { custom("IBMPlexMono-Medium", size: 13) }
+        static var body: Font { custom("IBMPlexMono-Regular", size: 13) }
+        static var caption: Font { custom("IBMPlexMono-Regular", size: 12) }
+        static var label: Font { custom("IBMPlexMono-Medium", size: 13) }
+        static var metadata: Font { custom("IBMPlexMono-Regular", size: 12) }
         static var tiny: Font { caption }
 
         private static func custom(_ name: String, size: CGFloat) -> Font {
@@ -81,8 +93,7 @@ enum DesignTokens {
 
 enum BundledFonts {
     static let names = [
-        "ArchivoBlack-Regular", "IBMPlexSans-Regular", "IBMPlexSans-SemiBold",
-        "IBMPlexMono-Regular", "IBMPlexMono-Medium"
+        "ArchivoBlack-Regular", "IBMPlexMono-Regular", "IBMPlexMono-Medium"
     ]
 
     private static let registration: Void = {

@@ -1,6 +1,6 @@
 # SqueezeBar design system
 
-SqueezeBar is a local utility with a bold, utilitarian interface. The visual language is full brutalism: square geometry, black and white surfaces, thick outlines, crisp offset shadows, and neon fills. Both appearances follow macOS automatically.
+SqueezeBar is a local utility with a bold, utilitarian interface. The visual language is full brutalism: square geometry, warm paper and charcoal surfaces, thick outlines, crisp offset shadows, and soft lime accents. Both appearances follow macOS automatically.
 
 ## Foundations
 
@@ -8,14 +8,15 @@ SqueezeBar is a local utility with a bold, utilitarian interface. The visual lan
 
 | Role | Light | Dark | Usage |
 | --- | --- | --- | --- |
-| Canvas / surface | `#FFFFFF` | `#0A0A0A` | Backgrounds and panels |
-| Ink / outline | `#0A0A0A` | `#FFFFFF` | Text, symbols, 2-point outlines |
-| Inset | 94% white | 12% white | Fields, secondary surfaces |
-| Muted text | 36% white | 73% white | Descriptions and metadata |
-| Action / selection / success | `#C6FF00` | `#C6FF00` | Neon lime fills |
-| Drop target / notice | `#F5FF00` | `#F5FF00` | Neon yellow fills |
+| Canvas / surface | `#F2F1E9` | `#191B17` | Backgrounds and panels |
+| Ink / outline | `#20211D` | `#E5E5DA` | Text, symbols, 2-point outlines |
+| Inset | #E8E8DF | #24271F | Fields, secondary surfaces |
+| Muted text | #595B50 | #B9BCAF | Descriptions and metadata |
+| Primary action / indicator | `#BCD85F` | `#BCD85F` | Soft lime fills |
+| Selection | `#E5EBCF` | `#2A3021` | Selected rows with checkmarks |
+| Drop target / notice | `#E4D879` | `#E4D879` | Notice fills and small drop strips |
 
-Always use black text on neon fills. Neon is not a small-text color on white. Explain errors with text and an error symbol on a monochrome panel. Pair success, notices, and selection with explicit labels or symbols.
+Always use black text on soft lime accents. Neon is not a small-text color on white. Explain errors with text and an error symbol on a monochrome panel. Pair success, notices, and selection with explicit labels or symbols.
 
 Use a 4-point spacing grid: 4, 8, 12, 16, 20, and 24 points. Panel padding is 16 points; outer padding is 20 points. Corners are square. Outlines are 2 points; raised panels and primary buttons use a zero-blur shadow offset 3 points right/down. Reserve layout space for shadows.
 
@@ -23,17 +24,18 @@ Use a 4-point spacing grid: 4, 8, 12, 16, 20, and 24 points. Panel padding is 16
 
 | Token | Typeface | Size | Usage |
 | --- | --- | --- | --- |
-| `hero` | Archivo Black | 28 | Empty-state headline |
-| `title` | Archivo Black | 20 | Wordmark and status headings |
-| `heading` | IBM Plex Sans Semibold | 13 | Controls and filenames |
-| `body` | IBM Plex Sans Regular | 13 | Explanatory text |
-| `caption` | IBM Plex Sans Regular | 11 | Supporting text |
-| `label` | IBM Plex Mono Medium | 11 | Section labels, badges, percentages |
-| `metadata` | IBM Plex Mono Regular | 11 | Sizes, formats, dimensions, paths |
+| `hero` | Archivo Black | 24 | Empty-state headline |
+| `title` | Archivo Black | 20 | App name |
+| `status` | Archivo Black | 18 | Prominent status headings |
+| `heading` | IBM Plex Mono Medium | 13 | Controls and filenames |
+| `body` | IBM Plex Mono Regular | 13 | Explanatory text |
+| `caption` | IBM Plex Mono Regular | 12 | Supporting text |
+| `label` | IBM Plex Mono Medium | 13 | Section labels |
+| `metadata` | IBM Plex Mono Regular | 12 | Sizes, percentages, page numbers, formats, dimensions, paths |
 
-Uppercase short labels and prominent headings. Keep body text in sentence case and filenames in their original case. Long filenames truncate in the middle; multi-line messages wrap. SF Symbols retain system symbol fonts.
+Use normal capitalization, preserving uppercase file formats and original filenames. Set the custom IBM Plex Mono body font at each screen root for inherited labels, fields, placeholders, and menus. Long filenames truncate in the middle; multi-line messages wrap. Size symbols through resizable images and frames, without system-font modifiers.
 
-Fonts are bundled and registered once by `BundledFonts` before app views load. Typography tokens also trigger registration for previews. No font installation or runtime network request is needed.
+Fonts are bundled and registered once by `BundledFonts` before app views load. Typography tokens also trigger registration for previews. Verified PostScript names: `ArchivoBlack-Regular`, `IBMPlexMono-Medium`, and `IBMPlexMono-Regular`. No font installation or runtime network request is needed.
 
 Sources: [Archivo Black / Omnibus-Type](https://www.omnibus-type.com/fonts/archivo/), [IBM Plex](https://github.com/IBM/plex/), and [Google Fonts](https://github.com/google/fonts). Original font binaries and each family's Open Font License are in `SqueezeBar/Resources/Fonts`.
 
@@ -41,12 +43,12 @@ Sources: [Archivo Black / Omnibus-Type](https://www.omnibus-type.com/fonts/archi
 
 - `BrutalistPanel`: bordered, raised container; group related controls without nesting panels.
 - `BrutalistPrimaryButton` / `BrutalistButtonStyle`: lime primary action or outlined secondary control. The primary shadow compresses on press in 120 ms. Native buttons keep keyboard activation and disabled behavior; keyboard focus adds a dashed outline.
-- `BrutalistChoiceChip`, `BrutalistChoicePicker`, `BrutalistActionRow`: immediate selection, lime fill with black ink, selected accessibility traits. Use a grid rather than squeezing long options into one segmented row.
+- `BrutalistChoiceChip`, `BrutalistChoicePicker`, `BrutalistActionRow`: immediate selection, pale green (light) or deep green (dark) fill with appearance-specific ink and checkmarks, selected accessibility traits. Use a grid rather than squeezing long options into one segmented row.
 - `BrutalistQuietButtonStyle`: text and compact row actions; underline on hover/focus, without scaling.
 - `BrutalistSlider`: square lime thumb and bordered track, implemented with a native `NSSlider` and custom cell drawing. Arrow keys adjust one configured step, dragging snaps relative to the lower bound, and the accessible value describes a percentage.
 - `BrutalistToggleStyle`: square lime checkbox row with native button keyboard activation and a native toggle accessibility representation.
 - `BrutalistSecureField`: native password input with inset fill, outline, and thicker bottom edge while focused.
-- `BrutalistDropSurface`: dashed idle outline; yellow fill and solid black outline while targeted. Processing disables file changes.
+- `BrutalistDropSurface`: dashed idle outline; a small yellow strip and solid outline while targeted. Processing disables file changes.
 - `BrutalistBadge`, `BrutalistStatusPanel`, `ProgressIndicatorView`: format metadata and explicit status feedback. Errors use symbols and text rather than introducing another palette.
 - `OutputFolderSectionView`: shared destination selection; compact layout anchors the popover footer.
 

@@ -16,6 +16,17 @@ enum FileAction: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    var displayName: String {
+        switch self {
+        case .compress: return "Compress"
+        case .imageFormat: return "Change image format"
+        case .videoFormat: return "Change video format"
+        case .extractAudio: return "Save audio"
+        case .createPDF: return "Create PDF"
+        case .protectPDF: return "Add password"
+        }
+    }
+
     var conversionCategory: ConversionCategory? {
         switch self {
         case .compress: return nil
@@ -53,6 +64,16 @@ enum ConversionCategory: String, CaseIterable, Identifiable, Hashable {
     case videoToAudio = "Extract Audio"
     case pdfProtect   = "Lock PDF"
     var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .imageToImage: return "Change image format"
+        case .imageToPDF: return "Create PDF"
+        case .videoToVideo: return "Change video format"
+        case .videoToAudio: return "Save audio"
+        case .pdfProtect: return "Add password"
+        }
+    }
 }
 
 enum ImageOutputFormat: String, CaseIterable, Identifiable, Hashable {

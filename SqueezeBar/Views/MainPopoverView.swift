@@ -60,7 +60,7 @@ struct MainPopoverView: View {
             VStack(spacing: 16) {
                 saveFolder
                 if viewModel.selectedInput != nil && !viewModel.isWorking {
-                    BrutalistPrimaryButton(title: viewModel.selectedAction.rawValue,
+                    BrutalistPrimaryButton(title: viewModel.selectedAction.displayName,
                                            isDisabled: isActionDisabled) {
                         Task { await viewModel.process(settings: settings) }
                     }
@@ -74,6 +74,7 @@ struct MainPopoverView: View {
         .frame(width: DesignTokens.Geometry.popoverWidth, height: displayedHeight)
         .foregroundStyle(palette.ink)
         .background(palette.canvas)
+        .font(DesignTokens.Typography.body)
         .tint(palette.accent)
         .onDrop(of: [UTType.fileURL], isTargeted: $dropTargeted) { providers in
             guard !viewModel.isWorking else { return false }
@@ -97,15 +98,12 @@ struct MainPopoverView: View {
         HStack(spacing: 10) {
             BrutalistMark()
             VStack(alignment: .leading, spacing: 2) {
-                Text("SQUEEZEBAR").font(DesignTokens.Typography.title).tracking(-0.6)
-                Text("LESS SIZE. SAME POTENTIAL.")
-                    .font(DesignTokens.Typography.metadata).tracking(0.2)
-                    .foregroundStyle(palette.muted)
+                Text("SqueezeBar").font(DesignTokens.Typography.title).tracking(-0.6)
             }
             Spacer()
             if viewModel.selectedInput != nil {
                 Button { viewModel.openFilePicker() } label: {
-                    Image(systemName: "plus").font(DesignTokens.Typography.heading)
+                    Image(systemName: "plus").resizable().scaledToFit().frame(width: 13, height: 13)
                         .frame(width: 32, height: 32)
                         .background(palette.inset, in: Rectangle())
                 }
@@ -125,14 +123,14 @@ struct MainPopoverView: View {
         BrutalistDropSurface(isHighlighted: isDropHighlighted) {
             VStack(spacing: 0) {
                 Image(systemName: "arrow.down.document")
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundStyle(DesignTokens.Colors.black)
+                    .resizable().scaledToFit().frame(width: 30, height: 30)
+                    .foregroundStyle(palette.ink)
                     .frame(width: 64, height: 64)
-                    .background(palette.accent)
+                    .background(palette.inset)
                     .overlay(Rectangle().strokeBorder(palette.outline, lineWidth: DesignTokens.Geometry.border))
                     .accessibilityHidden(true)
                     .padding(.bottom, 20)
-                Text(isDropHighlighted ? "DROP IT.\nSQUEEZE IT." : "LESS SIZE.\nMORE SPACE.")
+                Text(isDropHighlighted ? "Drop files here" : "Start with a file")
                     .font(DesignTokens.Typography.hero).tracking(-0.8).multilineTextAlignment(.center)
                     .padding(.bottom, 10)
                 HStack(spacing: 8) {
@@ -142,7 +140,7 @@ struct MainPopoverView: View {
                 }
                 .padding(.bottom, 16)
                 Text("Drop an image, video, or PDF.\nSelect several images to create one PDF.")
-                    .font(DesignTokens.Typography.body).foregroundStyle(isDropHighlighted ? DesignTokens.Colors.black : palette.muted)
+                    .font(DesignTokens.Typography.body).foregroundStyle(palette.muted)
                     .multilineTextAlignment(.center).lineSpacing(4)
                     .padding(.bottom, 24)
                 BrutalistPrimaryButton(title: "Choose a file", isDisabled: false) {
@@ -152,7 +150,7 @@ struct MainPopoverView: View {
                     Image(systemName: "lock.shield")
                     Text("Your files stay on your Mac")
                 }
-                .font(DesignTokens.Typography.caption).foregroundStyle(isDropHighlighted ? DesignTokens.Colors.black : palette.muted)
+                .font(DesignTokens.Typography.caption).foregroundStyle(palette.muted)
                 .padding(.top, 16)
             }
             .padding(.horizontal, 24).padding(.vertical, 28)
@@ -167,7 +165,7 @@ struct MainPopoverView: View {
                     .font(DesignTokens.Typography.heading)
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(isDropHighlighted ? DesignTokens.Colors.black : palette.muted)
+            .foregroundStyle(palette.muted)
             .padding(.horizontal, 12).padding(.vertical, 12)
         }
         .accessibilityLabel(viewModel.isWorking
@@ -191,7 +189,7 @@ struct MainPopoverView: View {
                 case .single(let url):
                     HStack(alignment: .top, spacing: 12) {
                         Image(systemName: sourceSymbol(for: url))
-                            .font(.system(size: 21, weight: .light))
+                            .resizable().scaledToFit().frame(width: 21, height: 21)
                             .foregroundStyle(palette.ink)
                             .frame(width: 44, height: 48)
                             .background(palette.inset, in: Rectangle())
@@ -235,7 +233,7 @@ struct MainPopoverView: View {
     private func imageRow(_ url: URL, index: Int, count: Int) -> some View {
         HStack(spacing: 8) {
             Text(String(format: "%02d", index + 1))
-                .font(DesignTokens.Typography.label)
+                .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(palette.ink).frame(width: 22)
             Text(url.lastPathComponent).lineLimit(1).truncationMode(.middle)
             Spacer(minLength: 0)
@@ -259,7 +257,7 @@ struct MainPopoverView: View {
         VStack(alignment: .leading, spacing: 8) {
             BrutalistSectionLabel(title: "What would you like to do?")
             ForEach(viewModel.availableActions) { action in
-                BrutalistActionRow(title: action.rawValue, symbol: actionSymbol(action),
+                BrutalistActionRow(title: action.displayName, symbol: actionSymbol(action),
                                    isSelected: action == viewModel.selectedAction,
                                    isDisabled: viewModel.isWorking) {
                     viewModel.selectedAction = action
@@ -285,7 +283,7 @@ struct MainPopoverView: View {
                     }
                     if viewModel.isCurrentFileVideo {
                         Rectangle().fill(palette.outline).frame(height: DesignTokens.Geometry.border)
-                        Toggle("Reduce frame rate", isOn: $settings.enableFramerateReduction)
+                        Toggle("Reduce frames per second", isOn: $settings.enableFramerateReduction)
                             .toggleStyle(BrutalistToggleStyle())
                             .font(DesignTokens.Typography.heading)
                             .onChange(of: settings.enableFramerateReduction) { enabled in
@@ -357,7 +355,7 @@ struct MainPopoverView: View {
                 Text(title).font(DesignTokens.Typography.heading)
                 Spacer()
                 Text("\(Int(value.wrappedValue * 100))%")
-                    .font(DesignTokens.Typography.label)
+                    .font(DesignTokens.Typography.metadata)
                     .foregroundStyle(palette.ink)
                     .padding(.horizontal, 7).padding(.vertical, 4)
                     .background(palette.accent)
@@ -384,7 +382,7 @@ struct MainPopoverView: View {
             HStack(spacing: 12) {
                 ProgressView().controlSize(.small).tint(palette.ink)
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("WORKING.").font(DesignTokens.Typography.title)
+                    Text("Working").font(DesignTokens.Typography.status)
                     Text(viewModel.statusMessage.isEmpty ? "Working locally on your Mac…" : viewModel.statusMessage)
                         .font(DesignTokens.Typography.caption).foregroundStyle(palette.muted)
                 }
@@ -396,10 +394,10 @@ struct MainPopoverView: View {
         BrutalistPanel {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
-                    Image(systemName: "checkmark").font(.system(size: 18, weight: .black))
+                    Image(systemName: "checkmark").resizable().scaledToFit().frame(width: 18, height: 18)
                         .foregroundStyle(DesignTokens.Colors.black).frame(width: 32, height: 32)
                         .background(palette.accent)
-                    Text("DONE.").font(DesignTokens.Typography.title)
+                    Text("Done").font(DesignTokens.Typography.status)
                 }
                 if let url = viewModel.resultURL {
                     Text(url.lastPathComponent).font(DesignTokens.Typography.heading)

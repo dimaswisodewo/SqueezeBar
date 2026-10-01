@@ -29,9 +29,8 @@ struct BrutalistSectionLabel: View {
     let title: String
 
     var body: some View {
-        Text(title.uppercased())
+        Text(title)
             .font(DesignTokens.Typography.label)
-            .tracking(0.8)
             .foregroundStyle(DesignTokens.Colors.ink)
     }
 }
@@ -81,6 +80,7 @@ struct BrutalistQuietButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         let palette = DesignTokens.Palette(colorScheme)
         configuration.label
+            .font(DesignTokens.Typography.heading)
             .foregroundStyle(palette.ink)
             .background((isHovered || configuration.isPressed) && isEnabled ? palette.inset : .clear)
             .overlay(alignment: .bottom) {
@@ -101,9 +101,9 @@ struct BrutalistPrimaryButton: View {
     var body: some View {
         Button(action: action) {
             HStack {
-                Text(title.uppercased())
+                Text(title)
                 Spacer()
-                Image(systemName: "arrow.up.right").font(.system(size: 15, weight: .bold))
+                Image(systemName: "arrow.up.right").resizable().scaledToFit().frame(width: 15, height: 15)
             }
             .padding(.horizontal, DesignTokens.Spacing.lg)
             .frame(height: DesignTokens.Geometry.actionHeight)
@@ -127,17 +127,17 @@ struct BrutalistChoiceChip: View {
         Button(action: action) {
             HStack(spacing: 4) {
                 if isSelected {
-                    Image(systemName: "checkmark").font(.system(size: 10, weight: .black))
+                    Image(systemName: "checkmark").resizable().scaledToFit().frame(width: 10, height: 10)
                         .accessibilityHidden(true)
                 }
                 Text(title).font(DesignTokens.Typography.heading)
-                    .lineLimit(1).minimumScaleFactor(0.85)
+                    .lineLimit(2).multilineTextAlignment(.center)
             }
             .padding(.horizontal, 4)
             .frame(maxWidth: .infinity)
-            .frame(height: DesignTokens.Geometry.controlHeight)
-            .foregroundStyle(isSelected ? DesignTokens.Colors.black : palette.ink)
-            .background(isSelected ? palette.accent : palette.surface)
+            .frame(height: title.count > 18 ? DesignTokens.Geometry.actionHeight : DesignTokens.Geometry.controlHeight)
+            .foregroundStyle(palette.ink)
+            .background(isSelected ? palette.selection : palette.surface)
         }
         .buttonStyle(BrutalistButtonStyle())
         .disabled(isDisabled)
@@ -157,16 +157,16 @@ struct BrutalistActionRow: View {
         let palette = DesignTokens.Palette(colorScheme)
         Button(action: action) {
             HStack(spacing: DesignTokens.Spacing.md) {
-                Image(systemName: symbol).font(.system(size: 16, weight: .bold)).frame(width: 24)
+                Image(systemName: symbol).resizable().scaledToFit().frame(width: 16, height: 16).frame(width: 24)
                 Text(title).font(DesignTokens.Typography.heading)
                 Spacer()
                 Image(systemName: isSelected ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 17, weight: .bold))
+                    .resizable().scaledToFit().frame(width: 17, height: 17)
             }
-            .foregroundStyle(isSelected ? DesignTokens.Colors.black : palette.ink)
+            .foregroundStyle(palette.ink)
             .padding(.horizontal, DesignTokens.Spacing.md)
             .frame(height: DesignTokens.Geometry.actionHeight)
-            .background(isSelected ? palette.accent : palette.surface)
+            .background(isSelected ? palette.selection : palette.surface)
         }
         .buttonStyle(BrutalistButtonStyle())
         .disabled(isDisabled)
@@ -179,8 +179,8 @@ struct BrutalistBadge: View {
     var highlighted = false
 
     var body: some View {
-        Text(title.uppercased())
-            .font(DesignTokens.Typography.label)
+        Text(title)
+            .font(DesignTokens.Typography.metadata)
             .foregroundStyle(highlighted ? DesignTokens.Colors.black : DesignTokens.Colors.ink)
             .padding(.horizontal, 8).padding(.vertical, 4)
             .background(highlighted ? DesignTokens.Colors.lime : DesignTokens.Colors.canvas)
@@ -191,7 +191,7 @@ struct BrutalistBadge: View {
 struct BrutalistMark: View {
     var body: some View {
         Image(systemName: "arrow.down.right.and.arrow.up.left")
-            .font(.system(size: 23, weight: .black))
+            .resizable().scaledToFit().frame(width: 23, height: 23)
             .foregroundStyle(DesignTokens.Colors.black)
             .frame(width: 44, height: 44)
             .background(DesignTokens.Colors.lime)
@@ -214,10 +214,13 @@ struct BrutalistDropSurface<Content: View>: View {
         let palette = DesignTokens.Palette(colorScheme)
         content
             .frame(maxWidth: .infinity)
-            .foregroundStyle(isHighlighted ? DesignTokens.Colors.black : palette.ink)
-            .background(isHighlighted ? palette.notice : palette.surface)
+            .foregroundStyle(palette.ink)
+            .background(palette.surface)
+            .overlay(alignment: .top) {
+                if isHighlighted { Rectangle().fill(palette.notice).frame(height: 5) }
+            }
             .overlay {
-                Rectangle().strokeBorder(isHighlighted ? DesignTokens.Colors.black : palette.outline,
+                Rectangle().strokeBorder(palette.outline,
                     style: StrokeStyle(lineWidth: DesignTokens.Geometry.border, dash: isHighlighted ? [] : [8, 4]))
             }
     }
@@ -234,14 +237,14 @@ struct BrutalistStatusPanel: View {
         BrutalistPanel {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 8) {
-                    Image(systemName: symbol).font(.system(size: 18, weight: .bold))
-                    Text(title.uppercased()).font(DesignTokens.Typography.heading)
+                    Image(systemName: symbol).resizable().scaledToFit().frame(width: 18, height: 18)
+                    Text(title).font(DesignTokens.Typography.status)
                 }
                 .foregroundStyle(tone == .error ? DesignTokens.Colors.ink : DesignTokens.Colors.black)
                 .padding(8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(tone == .error ? DesignTokens.Colors.inset :
-                            (tone == .success ? DesignTokens.Colors.lime : DesignTokens.Colors.yellow))
+                            DesignTokens.Colors.yellow)
                 Text(message).font(DesignTokens.Typography.body).fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -280,7 +283,7 @@ struct BrutalistToggleStyle: ToggleStyle {
         Button { configuration.isOn.toggle() } label: {
             HStack(spacing: 12) {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 12, weight: .black))
+                    .resizable().scaledToFit().frame(width: 12, height: 12)
                     .opacity(configuration.isOn ? 1 : 0)
                     .foregroundStyle(DesignTokens.Colors.black)
                     .frame(width: 24, height: 24)

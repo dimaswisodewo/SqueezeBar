@@ -27,14 +27,14 @@ struct ConversionSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-            // Conversion Type
+            // Action
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-                SectionHeader(icon: "arrow.triangle.2.circlepath", title: "Conversion Type")
+                SectionHeader(icon: "arrow.triangle.2.circlepath", title: "Action")
 
                 BrutalistChoicePicker(
                     selection: $conversionCategory,
                     options: availableCategories,
-                    label: { $0.rawValue },
+                    label: { $0.displayName },
                     isDisabled: viewModel.isConverting
                 )
                 .onChange(of: conversionCategory) { newValue in
@@ -69,13 +69,14 @@ struct ConversionSettingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .foregroundStyle(DesignTokens.Colors.ink)
         .background(DesignTokens.Colors.canvas)
+        .font(DesignTokens.Typography.body)
     }
 
     // MARK: - Image Conversion Controls
 
     private var imageConversionControls: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            SectionHeader(icon: "photo", title: "Output Format")
+            SectionHeader(icon: "photo", title: "Output format")
 
             BrutalistChoicePicker(
                 selection: $imageOutputFormat,
@@ -123,7 +124,7 @@ struct ConversionSettingsView: View {
 
     private var videoConversionControls: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            SectionHeader(icon: "video", title: "Output Format")
+            SectionHeader(icon: "video", title: "Output format")
 
             BrutalistChoicePicker(
                 selection: $videoOutputFormat,
@@ -138,7 +139,7 @@ struct ConversionSettingsView: View {
                 }
             }
 
-            Text("Remuxes the video without re-encoding when possible")
+            Text("Keeps the original video quality when possible")
                 .font(DesignTokens.Typography.tiny)
                 .foregroundStyle(DesignTokens.Colors.muted)
         }
@@ -149,10 +150,10 @@ struct ConversionSettingsView: View {
     private var audioExtractionInfo: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             Image(systemName: "music.note")
-                .font(.system(size: 13))
+                .resizable().scaledToFit().frame(width: 13, height: 13)
                 .foregroundStyle(DesignTokens.Colors.ink)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Extracts audio as M4A (AAC)")
+                Text("Saves audio as M4A (AAC)")
                     .font(DesignTokens.Typography.caption)
                     .foregroundStyle(DesignTokens.Colors.ink)
                 Text("High quality, smaller than MP3")
@@ -173,7 +174,7 @@ struct ConversionSettingsView: View {
             // Info banner
             HStack(spacing: DesignTokens.Spacing.sm) {
                 Image(systemName: "doc.richtext")
-                    .font(.system(size: 13))
+                    .resizable().scaledToFit().frame(width: 13, height: 13)
                     .foregroundStyle(DesignTokens.Colors.ink)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Combines images into a single PDF")
@@ -199,7 +200,7 @@ struct ConversionSettingsView: View {
                     ForEach(viewModel.droppedFileURLs, id: \.absoluteString) { url in
                         HStack(spacing: DesignTokens.Spacing.xs) {
                             Image(systemName: "photo")
-                                .font(.system(size: 10))
+                                .resizable().scaledToFit().frame(width: 10, height: 10)
                                 .foregroundStyle(DesignTokens.Colors.ink)
                             Text(url.lastPathComponent)
                                 .font(DesignTokens.Typography.tiny)
@@ -211,7 +212,7 @@ struct ConversionSettingsView: View {
                                 viewModel.removeFileFromList(url)
                             }) {
                                 Image(systemName: "xmark")
-                                    .font(.system(size: 8, weight: .bold))
+                                    .resizable().scaledToFit().frame(width: 8, height: 8)
                                     .foregroundStyle(DesignTokens.Colors.ink)
                             }
                             .buttonStyle(BrutalistQuietButtonStyle())
@@ -225,12 +226,12 @@ struct ConversionSettingsView: View {
                 }
             }
 
-            // Add More Files button
+            // Add files button
             Button(action: addMoreImages) {
                 HStack(spacing: DesignTokens.Spacing.xs) {
                     Image(systemName: "plus.circle")
-                        .font(.system(size: 11))
-                    Text("Add More Files")
+                        .resizable().scaledToFit().frame(width: 11, height: 11)
+                    Text("Add files")
                         .font(DesignTokens.Typography.caption)
                 }
                 .frame(maxWidth: .infinity)
@@ -248,18 +249,18 @@ struct ConversionSettingsView: View {
 
     private var pdfProtectControls: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            SectionHeader(icon: "lock.fill", title: "Password Protection")
+            SectionHeader(icon: "lock.fill", title: "Password protection")
 
             BrutalistSecureField(title: "Password", text: $settings.pdfPassword)
                 .disabled(viewModel.isConverting)
 
-            BrutalistSecureField(title: "Confirm Password", text: $settings.pdfPasswordConfirm)
+            BrutalistSecureField(title: "Confirm password", text: $settings.pdfPasswordConfirm)
                 .disabled(viewModel.isConverting)
 
             if !settings.pdfPassword.isEmpty && settings.pdfPassword != settings.pdfPasswordConfirm {
                 HStack(spacing: DesignTokens.Spacing.xs) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 10))
+                        .resizable().scaledToFit().frame(width: 10, height: 10)
                         .foregroundStyle(DesignTokens.Colors.ink)
                     Text("Passwords do not match")
                         .font(DesignTokens.Typography.tiny)

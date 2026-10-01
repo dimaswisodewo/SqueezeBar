@@ -11,7 +11,7 @@ struct OutputFolderSectionView: View {
         VStack(alignment: .leading, spacing: 12) {
             if !compact { BrutalistSectionLabel(title: "Save location") }
             HStack(spacing: 12) {
-                Image(systemName: "folder").font(.system(size: 20, weight: .bold))
+                Image(systemName: "folder").resizable().scaledToFit().frame(width: 20, height: 20)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
                     if compact { BrutalistSectionLabel(title: "Save to") }
@@ -27,7 +27,7 @@ struct OutputFolderSectionView: View {
                         .disabled(isDisabled)
                 }
                 Button(action: selectOutputFolder) {
-                    Text(settings.outputFolderURL == nil ? "CHOOSE" : "CHANGE")
+                    Text(settings.outputFolderURL == nil ? "Choose" : "Change")
                         .font(DesignTokens.Typography.label)
                         .padding(.horizontal, 12).frame(height: 36)
                 }
