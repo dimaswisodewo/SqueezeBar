@@ -22,11 +22,13 @@ class ImageToPDFConverter {
         guard let context = CGContext(outputURL as CFURL, mediaBox: &mediaBox, nil) else {
             throw ConversionError.conversionFailed("Could not create PDF context")
         }
+        var didClose = false
+        defer { if !didClose { context.closePDF() } }
 
         for inputURL in inputURLs {
             guard let imageSource = CGImageSourceCreateWithURL(inputURL as CFURL, nil),
                   let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
-                continue
+                throw ConversionError.conversionFailed("Could not read \(inputURL.lastPathComponent).")
             }
 
             let imageWidth = CGFloat(cgImage.width)
@@ -42,7 +44,7 @@ class ImageToPDFConverter {
         }
 
         context.closePDF()
-
+        didClose = true
         let outputSize = (try? outputURL.resourceValues(forKeys: [.fileSizeKey]).fileSize).map { Int64($0) } ?? 0
 
         return ConversionResult(

@@ -62,7 +62,12 @@ class ConversionManager {
             }
         }
 
-        return try imageToPDFConverter.convert(inputURLs: inputURLs, outputURL: outputURL)
+        do {
+            return try imageToPDFConverter.convert(inputURLs: inputURLs, outputURL: outputURL)
+        } catch {
+            try? fileManager.removeItem(at: outputURL)
+            throw error
+        }
     }
 
     private func outputURL(

@@ -6,6 +6,40 @@
 import UniformTypeIdentifiers
 import AVFoundation
 
+enum FileAction: String, CaseIterable, Identifiable {
+    case compress = "Compress"
+    case imageFormat = "Convert image"
+    case createPDF = "Create PDF"
+    case videoFormat = "Convert video"
+    case extractAudio = "Extract audio"
+    case protectPDF = "Protect PDF"
+
+    var id: String { rawValue }
+
+    var conversionCategory: ConversionCategory? {
+        switch self {
+        case .compress: return nil
+        case .imageFormat: return .imageToImage
+        case .createPDF: return .imageToPDF
+        case .videoFormat: return .videoToVideo
+        case .extractAudio: return .videoToAudio
+        case .protectPDF: return .pdfProtect
+        }
+    }
+}
+
+enum SelectedInput: Equatable {
+    case single(URL)
+    case images([URL])
+
+    var urls: [URL] {
+        switch self {
+        case .single(let url): return [url]
+        case .images(let urls): return urls
+        }
+    }
+}
+
 enum AppMode: String, CaseIterable, Identifiable, Hashable {
     case compress = "Compress"
     case convert  = "Convert"

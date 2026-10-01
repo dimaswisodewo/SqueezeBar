@@ -7,11 +7,14 @@
 
 import AppKit
 import SwiftUI
+import Combine
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
     private var dropOverlay: StatusItemDropOverlay?
+    private var workObservation: AnyCancellable?
+    private var idleImage: NSImage?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Show dock icon - app runs in both menu bar and dock
@@ -26,6 +29,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 // Set proper size for menu bar (menu bar icons are typically 18-22pt)
                 image.size = NSSize(width: 22, height: 22)
                 button.image = image
+                idleImage = image
             }
             button.action = #selector(togglePopover)
             button.target = self
@@ -40,10 +44,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Create popover
         popover = NSPopover()
-        popover.contentSize = NSSize(width: 400, height: 640)
+        popover.contentSize = NSSize(width: 420, height: 400)
         popover.behavior = .transient
         popover.animates = false
-        popover.contentViewController = NSHostingController(rootView: MainPopoverView())
+        popover.contentViewController = NSHostingController(rootView: MainPopoverView { [weak self] preferredHeight in
+            guard let self else { return preferredHeight }
+            let screenHeight = self.statusItem.button?.window?.screen?.visibleFrame.height
+                ?? NSScreen.main?.visibleFrame.height ?? 850
+            let height = min(max(300, preferredHeight), max(300, screenHeight - 40))
+            if abs(self.popover.contentSize.height - height) > 1 {
+                self.popover.contentSize = NSSize(width: 420, height: height)
+            }
+            return height
+        })
+        workObservation = Publishers.CombineLatest(
+            MainViewModel.shared.$isCompressing, MainViewModel.shared.$isConverting
+        ).receive(on: RunLoop.main).sink { [weak self] compressing, converting in
+            guard let button = self?.statusItem.button else { return }
+            if compressing || converting {
+                button.image = NSImage(systemSymbolName: "arrow.triangle.2.circlepath", accessibilityDescription: "SqueezeBar working")
+                button.image?.size = NSSize(width: 18, height: 18)
+                button.toolTip = "SqueezeBar is working"
+            } else {
+                button.image = self?.idleImage
+                button.toolTip = "SqueezeBar"
+            }
+        }
     }
 
     @objc func togglePopover() {
@@ -86,22 +112,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         showPopover()
 
-        if urls.count == 1 {
-            MainViewModel.shared.handleFileOpen(url: urls[0])
-        } else {
-            MainViewModel.shared.handleFileOpen(url: urls[0])
-            MainViewModel.shared.statusMessage = "Processing first file. Please drop one file at a time."
-        }
+        MainViewModel.shared.selectFiles(urls)
     }
 
     // Called for single file (legacy API - kept for compatibility)
     func application(_ sender: NSApplication, openFile filename: String) -> Bool {
         let url = URL(fileURLWithPath: filename)
-
-        guard FileManager.default.isReadableFile(atPath: url.path),
-              isFileTypeSupported(url) else {
-            return false
-        }
 
         showPopover()
         MainViewModel.shared.handleFileOpen(url: url)
@@ -143,11 +159,11 @@ extension AppDelegate: StatusItemDropDelegate {
         MainViewModel.shared.isDragging = false
     }
 
-    func dropOverlayPerformDrop(fileURL: URL) {
+    func dropOverlayPerformDrop(fileURLs: [URL]) {
         MainViewModel.shared.isDragging = false
         if !popover.isShown {
             showPopover()
         }
-        MainViewModel.shared.handleFileOpen(url: fileURL)
+        MainViewModel.shared.selectFiles(fileURLs)
     }
 }

@@ -31,6 +31,12 @@ class MainViewModel: ObservableObject {
     @Published var lastConversionResult: ConversionResult?
     @Published var droppedFileURLs: [URL] = []
     @Published var suggestedConversionCategory: ConversionCategory?
+    @Published private(set) var selectedInput: SelectedInput?
+    @Published var selectedAction: FileAction = .compress
+    @Published private(set) var availableActions: [FileAction] = []
+
+    var isWorking: Bool { isCompressing || isConverting }
+    var resultURL: URL? { lastResult?.compressedURL ?? lastConversionResult?.outputURL }
 
     private let compressionManager = CompressionManager()
     private let conversionManager = ConversionManager()
@@ -46,197 +52,124 @@ class MainViewModel: ObservableObject {
     private init() {}
 
     func handleDrop(providers: [NSItemProvider]) -> Bool {
-        guard let provider = providers.first else { return false }
-
-        // Load file URL asynchronously; dispatch back to MainActor for UI updates
-        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { [weak self] item, error in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-
-                if let error = error {
-                    self.statusMessage = "Error: \(error.localizedDescription)"
-                    return
-                }
-
-                if let data = item as? Data,
-                   let url = URL(dataRepresentation: data, relativeTo: nil) {
-                    // Cancel any pending cosmetic reset
-                    self.resetTask?.cancel()
-                    self.resetTask = nil
-
-                    self.droppedFileURL = url
-                    self.statusMessage = ""
-                    self.errorMessage = nil
-
-                    // Get all resource values in one call
-                    let resourceValues = try? url.resourceValues(forKeys: [.contentTypeKey, .fileSizeKey])
-                    let contentType = resourceValues?.contentType
-                    let fileSize = resourceValues?.fileSize
-
-                    // Detect if file is video
-                    if let contentType = contentType {
-                        self.isCurrentFileVideo = contentType.conforms(to: .video) || contentType.conforms(to: .movie)
-                        if self.isCurrentFileVideo {
-                            Task {
-                                await self.extractVideoMetadata(from: url)
-                            }
-                        } else {
-                            self.videoFramerate = nil
-                        }
-                    } else {
-                        self.isCurrentFileVideo = false
-                        self.videoFramerate = nil
-                    }
-
-                    // Update file info
-                    let ext = url.pathExtension.uppercased()
-                    self.fileTypeHint = ext.isEmpty ? nil : ext
-
-                    if let size = fileSize {
-                        self.fileSizeString = self.byteFormatter.string(fromByteCount: Int64(size))
-                    } else {
-                        self.fileSizeString = nil
-                    }
-                } else {
-                    self.statusMessage = ""
-                    self.errorMessage = "Could not read file"
-                }
-            }
-        }
-
-        return true
+        handleMultiDrop(providers: providers)
     }
 
     func handleMultiDrop(providers: [NSItemProvider]) -> Bool {
         guard !providers.isEmpty else { return false }
-
-        for provider in providers {
-            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { [weak self] item, error in
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    guard error == nil,
-                          let data = item as? Data,
-                          let url = URL(dataRepresentation: data, relativeTo: nil) else { return }
-
-                    self.resetTask?.cancel()
-                    self.resetTask = nil
-
-                    if !self.droppedFileURLs.contains(url) {
-                        self.droppedFileURLs.append(url)
-                    }
-
-                    // Keep droppedFileURL pointing to the first file for display
-                    if self.droppedFileURL == nil {
-                        self.droppedFileURL = url
-                        let ext = url.pathExtension.uppercased()
-                        self.fileTypeHint = ext.isEmpty ? nil : ext
-                        if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize {
-                            self.fileSizeString = self.byteFormatter.string(fromByteCount: Int64(size))
+        Task {
+            let urls = await withTaskGroup(of: (Int, URL?).self, returning: [URL?].self) { group in
+                for (index, provider) in providers.enumerated() {
+                    group.addTask {
+                        let url = await withCheckedContinuation { continuation in
+                            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                                if let data = item as? Data {
+                                    continuation.resume(returning: URL(dataRepresentation: data, relativeTo: nil))
+                                } else {
+                                    continuation.resume(returning: item as? URL)
+                                }
+                            }
                         }
+                        return (index, url)
                     }
-
-                    self.statusMessage = ""
-                    self.errorMessage = nil
                 }
+                var ordered = Array<URL?>(repeating: nil, count: providers.count)
+                for await (index, url) in group { ordered[index] = url }
+                return ordered
             }
+            guard urls.allSatisfy({ $0 != nil }) else {
+                errorMessage = "Could not read every dropped file."
+                return
+            }
+            selectFiles(urls.compactMap { $0 })
         }
-
         return true
     }
 
     func removeFileFromList(_ url: URL) {
-        droppedFileURLs.removeAll { $0 == url }
-        if droppedFileURLs.isEmpty {
-            droppedFileURL = nil
-            fileTypeHint = nil
-            fileSizeString = nil
-        } else if droppedFileURL == url {
-            droppedFileURL = droppedFileURLs.first
-        }
+        guard case .images(let urls) = selectedInput else { return }
+        let remaining = urls.filter { $0 != url }
+        if remaining.isEmpty { removeAttachedFile() }
+        else { selectFiles(remaining) }
     }
 
-    func handleFileOpen(url: URL) {
-        // Prevent interrupting active compression
-        if isCompressing {
-            statusMessage = "Please wait for current compression to finish"
+    func moveImage(from source: Int, to destination: Int) {
+        guard case .images(var urls) = selectedInput,
+              urls.indices.contains(source), urls.indices.contains(destination),
+              source != destination else { return }
+        let url = urls.remove(at: source)
+        urls.insert(url, at: destination)
+        selectedInput = .images(urls)
+        droppedFileURLs = urls
+        droppedFileURL = urls.first
+    }
+
+    func handleFileOpen(url: URL) { selectFiles([url]) }
+
+    func selectFiles(_ urls: [URL]) {
+        guard !isWorking else {
+            errorMessage = "Wait for the current job to finish."
             return
         }
-
-        // Cancel any pending cosmetic reset
-        resetTask?.cancel()
-        resetTask = nil
-
-        // Get all resource values in one call to avoid multiple file I/O syscalls
-        let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey])
-        let fileSize = resourceValues?.fileSize
-        let contentType = resourceValues?.contentType
-
-        // Validate file size to prevent memory issues
-        if let size = fileSize, let contentType = contentType {
-            let maxSize: Int64
-            if contentType.conforms(to: .video) {
-                maxSize = 10 * 1024 * 1024 * 1024 // 10GB for videos
-            } else if contentType.conforms(to: .pdf) {
-                maxSize = 1 * 1024 * 1024 * 1024 // 1GB for PDFs
-            } else {
-                maxSize = 500 * 1024 * 1024 // 500MB for images
+        let unique = Array(NSOrderedSet(array: urls)) as? [URL] ?? urls
+        guard !unique.isEmpty else { return }
+        let types = unique.map { (try? $0.resourceValues(forKeys: [.contentTypeKey]).contentType)
+            ?? UTType(filenameExtension: $0.pathExtension) }
+        let actions = types.map { type -> [FileAction] in
+            guard let type else { return [] }
+            if type.conforms(to: .pdf) { return [.compress, .protectPDF] }
+            if type.conforms(to: .movie) || type.conforms(to: .video) {
+                return [.compress, .videoFormat, .extractAudio]
             }
-
-            if Int64(size) > maxSize {
-                let sizeMB = Double(size) / (1024 * 1024)
-                let maxMB = Double(maxSize) / (1024 * 1024)
-                errorMessage = String(format: "File too large: %.0fMB. Maximum: %.0fMB", sizeMB, maxMB)
+            if [.jpeg, .png, .heic, .heif, .bmp, .tiff, .gif].contains(where: { type.conforms(to: $0) }) {
+                return type.conforms(to: .gif)
+                    ? [.imageFormat, .createPDF] : [.compress, .imageFormat, .createPDF]
+            }
+            return []
+        }
+        guard actions.allSatisfy({ !$0.isEmpty }) else {
+            errorMessage = "This file type is not supported."
+            return
+        }
+        if unique.count > 1 && !actions.allSatisfy({ $0.contains(.createPDF) }) {
+            errorMessage = "Select only images to create one PDF. Mixed files cannot be processed together."
+            return
+        }
+        for (url, type) in zip(unique, types) {
+            guard let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize else { continue }
+            let limit: Int64 = type?.conforms(to: .video) == true ? 10_737_418_240 :
+                (type?.conforms(to: .pdf) == true ? 1_073_741_824 : 524_288_000)
+            guard Int64(size) <= limit else {
+                errorMessage = "\(url.lastPathComponent) is too large to process."
                 return
             }
         }
-
-        droppedFileURL = url
+        resetTask?.cancel()
+        lastResult = nil
+        lastConversionResult = nil
         statusMessage = ""
         errorMessage = nil
-
-        // Detect if file is video
-        if let contentType = contentType {
-            isCurrentFileVideo = contentType.conforms(to: .video) || contentType.conforms(to: .movie)
-            if isCurrentFileVideo {
-                Task {
-                    await extractVideoMetadata(from: url)
-                }
-            } else {
-                videoFramerate = nil
-            }
-        } else {
-            isCurrentFileVideo = false
-            videoFramerate = nil
-        }
-
-        // Auto-suggest conversion category when in Convert tab
-        if appMode == .convert, let contentType = contentType {
-            if contentType.conforms(to: .image) {
-                suggestedConversionCategory = .imageToImage
-            } else if contentType.conforms(to: .movie) || contentType.conforms(to: .video) {
-                suggestedConversionCategory = .videoToVideo
-            } else if contentType.conforms(to: .pdf) {
-                suggestedConversionCategory = .pdfProtect
-            }
-        }
-
-        // Update file info
-        let ext = url.pathExtension.uppercased()
-        fileTypeHint = ext.isEmpty ? nil : ext
-
-        if let size = fileSize {
-            fileSizeString = byteFormatter.string(fromByteCount: Int64(size))
-        } else {
-            fileSizeString = nil
-        }
+        selectedInput = unique.count == 1 ? .single(unique[0]) : .images(unique)
+        availableActions = unique.count == 1 ? actions[0] : [.createPDF]
+        selectedAction = availableActions[0]
+        droppedFileURLs = unique
+        droppedFileURL = unique[0]
+        fileTypeHint = unique.count == 1 ? unique[0].pathExtension.uppercased() : "IMAGES"
+        fileSizeString = unique.count == 1
+            ? (try? unique[0].resourceValues(forKeys: [.fileSizeKey]).fileSize)
+                .map { byteFormatter.string(fromByteCount: Int64($0)) }
+            : "\(unique.count) files"
+        isCurrentFileVideo = types[0]?.conforms(to: .video) == true || types[0]?.conforms(to: .movie) == true
+        videoFramerate = nil
+        if isCurrentFileVideo { Task { await extractVideoMetadata(from: unique[0]) } }
     }
 
     func openFilePicker() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.message = "Choose a file to compress"
+        panel.allowsMultipleSelection = true
+        panel.message = "Add a file or select images to create a PDF"
         panel.prompt = "Select"
 
         // Allow common file types
@@ -254,9 +187,7 @@ class MainViewModel: ObservableObject {
         panel.allowsOtherFileTypes = true
 
         if panel.runModal() == .OK {
-            if let url = panel.url {
-                handleFileOpen(url: url)
-            }
+            selectFiles(panel.urls)
         }
     }
 
@@ -265,6 +196,10 @@ class MainViewModel: ObservableObject {
         resetTask = nil
         droppedFileURL = nil
         droppedFileURLs = []
+        selectedInput = nil
+        availableActions = []
+        lastResult = nil
+        lastConversionResult = nil
         statusMessage = ""
         errorMessage = nil
         fileTypeHint = nil
@@ -275,14 +210,7 @@ class MainViewModel: ObservableObject {
     }
   
     func removeAttachedFileWithoutResetingStatusMessage() {
-        resetTask?.cancel()
-        resetTask = nil
-        droppedFileURL = nil
-        errorMessage = nil
-        fileTypeHint = nil
-        fileSizeString = nil
-        isCurrentFileVideo = false
-        videoFramerate = nil
+        // Retain input and controls after processing.
     }
 
     private func extractVideoMetadata(from url: URL) async {
@@ -303,6 +231,28 @@ class MainViewModel: ObservableObject {
         guard let folder = url?.deletingLastPathComponent() else { return }
         DispatchQueue.global(qos: .userInitiated).async {
             NSWorkspace.shared.open(folder)
+        }
+    }
+
+    func showResultInFinder() {
+        guard let url = resultURL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    func dismissResult() {
+        lastResult = nil
+        lastConversionResult = nil
+        statusMessage = ""
+    }
+
+    func process(settings: AppSettings) async {
+        guard availableActions.contains(selectedAction) else { return }
+        if let category = selectedAction.conversionCategory {
+            settings.conversionCategory = category
+            settings.saveConversionSettings()
+            await convertFile(settings: settings)
+        } else {
+            await compressFile(settings: settings)
         }
     }
 
@@ -344,17 +294,6 @@ class MainViewModel: ObservableObject {
                 statusMessage = "✓ Created PDF (\(byteFormatter.string(fromByteCount: result.outputSize)))"
                 isConverting = false
 
-                resetTask?.cancel()
-                resetTask = Task { [weak self] in
-                    try? await Task.sleep(nanoseconds: 2_500_000_000)
-                    guard let self, !Task.isCancelled else { return }
-                    self.droppedFileURL = nil
-                    self.droppedFileURLs = []
-                    self.statusMessage = ""
-                    self.lastConversionResult = nil
-                    self.fileTypeHint = nil
-                    self.fileSizeString = nil
-                }
             } catch {
                 errorMessage = formatConversionError(error)
                 statusMessage = ""
@@ -397,18 +336,6 @@ class MainViewModel: ObservableObject {
             statusMessage = "✓ Converted to \(result.outputFormat) (\(byteFormatter.string(fromByteCount: result.outputSize)))"
             isConverting = false
 
-            resetTask?.cancel()
-            resetTask = Task { [weak self] in
-                try? await Task.sleep(nanoseconds: 2_500_000_000)
-                guard let self, !Task.isCancelled else { return }
-                self.droppedFileURL = nil
-                self.statusMessage = ""
-                self.lastConversionResult = nil
-                self.fileTypeHint = nil
-                self.fileSizeString = nil
-                self.isCurrentFileVideo = false
-                self.videoFramerate = nil
-            }
         } catch {
             errorMessage = formatConversionError(error)
             statusMessage = ""
@@ -444,6 +371,7 @@ class MainViewModel: ObservableObject {
 
         isCompressing = true
         errorMessage = nil
+        lastResult = nil
         statusMessage = getCompressionMessage(for: settings.compressionMode)
 
         let inputAccessing = inputURL.startAccessingSecurityScopedResource()
@@ -470,19 +398,6 @@ class MainViewModel: ObservableObject {
             // Unblock immediately so the user can start another compression
             isCompressing = false
 
-            // Schedule cosmetic UI reset separately — cancellable if user drops a new file
-            resetTask?.cancel()
-            resetTask = Task { [weak self] in
-                try? await Task.sleep(nanoseconds: 2_500_000_000)
-                guard let self, !Task.isCancelled else { return }
-                self.droppedFileURL = nil
-                self.statusMessage = ""
-                self.lastResult = nil
-                self.fileTypeHint = nil
-                self.fileSizeString = nil
-                self.isCurrentFileVideo = false
-                self.videoFramerate = nil
-            }
         } catch {
             errorMessage = formatErrorMessage(error)
             statusMessage = ""

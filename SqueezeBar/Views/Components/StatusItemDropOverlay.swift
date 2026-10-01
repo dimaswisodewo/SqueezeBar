@@ -8,7 +8,7 @@ import AppKit
 protocol StatusItemDropDelegate: AnyObject {
     func dropOverlayDraggingEntered()
     func dropOverlayDraggingExited()
-    func dropOverlayPerformDrop(fileURL: URL)
+    func dropOverlayPerformDrop(fileURLs: [URL])
 }
 
 class StatusItemDropOverlay: NSView {
@@ -46,26 +46,25 @@ class StatusItemDropOverlay: NSView {
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        guard let url = extractFileURL(from: sender) else { return false }
-        dropDelegate?.dropOverlayPerformDrop(fileURL: url)
+        guard let urls = extractFileURLs(from: sender), !urls.isEmpty else { return false }
+        dropDelegate?.dropOverlayPerformDrop(fileURLs: urls)
         return true
     }
 
     // MARK: - Helpers
 
     private func hasValidFile(in info: NSDraggingInfo) -> Bool {
-        extractFileURL(from: info) != nil
+        extractFileURLs(from: info) != nil
     }
 
-    private func extractFileURL(from info: NSDraggingInfo) -> URL? {
+    private func extractFileURLs(from info: NSDraggingInfo) -> [URL]? {
         let pasteboard = info.draggingPasteboard
         guard let urls = pasteboard.readObjects(
             forClasses: [NSURL.self],
             options: [.urlReadingFileURLsOnly: true]
         ) as? [URL],
-        let url = urls.first,
-        AppDelegate.isSupportedFileExtension(url.pathExtension.lowercased())
+        !urls.isEmpty
         else { return nil }
-        return url
+        return urls
     }
 }
