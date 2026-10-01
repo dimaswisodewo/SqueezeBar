@@ -28,7 +28,9 @@ struct MainPopoverView: View {
     private var palette: DesignTokens.Palette { DesignTokens.Palette(colorScheme) }
     private var isDropHighlighted: Bool { (dropTargeted || viewModel.isDragging) && !viewModel.isWorking }
     private var isActionDisabled: Bool {
-        viewModel.selectedAction == .protectPDF && !settings.isPdfPasswordValid
+        (viewModel.selectedAction == .protectPDF && !settings.isPdfPasswordValid)
+            || (viewModel.selectedAction == .createGIF
+                && (viewModel.isLoadingVideoMetadata || viewModel.gifDurationError != nil))
     }
 
     var body: some View {
@@ -319,6 +321,8 @@ struct MainPopoverView: View {
                         settings.videoOutputFormat = $0
                         settings.saveConversionSettings()
                     }
+                case .createGIF:
+                    GIFConversionControls(settings: settings)
                 case .extractAudio:
                     BrutalistSectionLabel(title: "Audio output")
                     Label("Saves the audio track as M4A.", systemImage: "waveform")
@@ -386,6 +390,12 @@ struct MainPopoverView: View {
                     Text(viewModel.statusMessage.isEmpty ? "Working locally on your Mac…" : viewModel.statusMessage)
                         .font(DesignTokens.Typography.caption).foregroundStyle(palette.muted)
                 }
+                if viewModel.selectedAction == .createGIF {
+                    Spacer()
+                    Button("Cancel") { viewModel.cancelGIFConversion() }
+                        .buttonStyle(BrutalistQuietButtonStyle())
+                        .disabled(viewModel.isCancellingGIF)
+                }
             }
         }
     }
@@ -429,6 +439,7 @@ struct MainPopoverView: View {
         case .compress: return "arrow.down.right.and.arrow.up.left"
         case .imageFormat: return "photo"
         case .videoFormat: return "film"
+        case .createGIF: return "photo.on.rectangle"
         case .extractAudio: return "waveform"
         case .createPDF: return "doc.on.doc"
         case .protectPDF: return "lock"

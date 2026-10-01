@@ -26,6 +26,29 @@ class MainViewModel: ObservableObject {
     @Published var fileSizeString: String?
     @Published var isCurrentFileVideo = false
     @Published var videoFramerate: Float?
+    @Published private(set) var videoDuration: Double?
+    @Published private(set) var videoSourceFramerate: Double?
+    @Published private(set) var isLoadingVideoMetadata = false
+    @Published private(set) var isCancellingGIF = false
+    private var gifConversionTask: Task<ConversionResult, Error>?
+    private var metadataTask: Task<Void, Never>?
+    private var metadataRequestID = UUID()
+
+    var gifDurationError: String? {
+        guard !isLoadingVideoMetadata else { return nil }
+        guard let duration = videoDuration, duration.isFinite, duration > 0 else {
+            return "Could not determine a valid video duration."
+        }
+        return duration > VideoToGIFConverter.maximumDuration
+            ? "Video is longer than 30 seconds. Trim it before creating a GIF." : nil
+    }
+
+    func cancelGIFConversion() {
+        guard let task = gifConversionTask, !isCancellingGIF else { return }
+        isCancellingGIF = true
+        statusMessage = "Cancelling…"
+        task.cancel()
+    }
     @Published var appMode: AppMode = .compress
     @Published var isConverting: Bool = false
     @Published var lastConversionResult: ConversionResult?
@@ -119,7 +142,7 @@ class MainViewModel: ObservableObject {
             guard let type else { return [] }
             if type.conforms(to: .pdf) { return [.compress, .protectPDF] }
             if type.conforms(to: .movie) || type.conforms(to: .video) {
-                return [.compress, .videoFormat, .extractAudio]
+                return [.compress, .videoFormat, .createGIF, .extractAudio]
             }
             if [.jpeg, .png, .heic, .heif, .bmp, .tiff, .gif].contains(where: { type.conforms(to: $0) }) {
                 return type.conforms(to: .gif)
@@ -161,7 +184,15 @@ class MainViewModel: ObservableObject {
             : "\(unique.count) files"
         isCurrentFileVideo = types[0]?.conforms(to: .video) == true || types[0]?.conforms(to: .movie) == true
         videoFramerate = nil
-        if isCurrentFileVideo { Task { await extractVideoMetadata(from: unique[0]) } }
+        metadataTask?.cancel()
+        metadataRequestID = UUID()
+        videoDuration = nil
+        videoSourceFramerate = nil
+        isLoadingVideoMetadata = isCurrentFileVideo
+        let requestID = metadataRequestID
+        if isCurrentFileVideo {
+            metadataTask = Task { await extractVideoMetadata(from: unique[0], requestID: requestID) }
+        }
     }
 
     func openFilePicker() {
@@ -192,6 +223,12 @@ class MainViewModel: ObservableObject {
     }
 
     func removeAttachedFile() {
+        guard !isWorking else { return }
+        metadataTask?.cancel()
+        metadataRequestID = UUID()
+        videoDuration = nil
+        videoSourceFramerate = nil
+        isLoadingVideoMetadata = false
         resetTask?.cancel()
         resetTask = nil
         droppedFileURL = nil
@@ -213,17 +250,19 @@ class MainViewModel: ObservableObject {
         // Retain input and controls after processing.
     }
 
-    private func extractVideoMetadata(from url: URL) async {
-        let asset = AVAsset(url: url)
-
-        guard let videoTrack = try? await asset.loadTracks(withMediaType: .video).first else {
-            videoFramerate = nil
-            return
-        }
-
-        let fps = try? await videoTrack.load(.nominalFrameRate)
-        let rounded = floor(fps ?? 0)
-        videoFramerate = rounded > 0 ? rounded : nil
+    private func extractVideoMetadata(from url: URL, requestID: UUID) async {
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+        let asset = AVURLAsset(url: url)
+        let duration = try? await asset.load(.duration).seconds
+        let track = try? await asset.loadTracks(withMediaType: .video).first
+        let fps = try? await track?.load(.nominalFrameRate)
+        guard !Task.isCancelled, metadataRequestID == requestID, droppedFileURL == url else { return }
+        videoDuration = duration
+        let sourceFPS = Double(fps ?? 0)
+        videoSourceFramerate = sourceFPS.isFinite && sourceFPS > 0 ? sourceFPS : nil
+        videoFramerate = sourceFPS.isFinite && sourceFPS >= 1 ? Float(floor(sourceFPS)) : nil
+        isLoadingVideoMetadata = false
     }
 
     func openResultFolder() {
@@ -246,7 +285,7 @@ class MainViewModel: ObservableObject {
     }
 
     func process(settings: AppSettings) async {
-        guard availableActions.contains(selectedAction) else { return }
+        guard !isWorking, availableActions.contains(selectedAction) else { return }
         if let category = selectedAction.conversionCategory {
             settings.conversionCategory = category
             settings.saveConversionSettings()
@@ -257,6 +296,11 @@ class MainViewModel: ObservableObject {
     }
 
     func convertFile(settings: AppSettings) async {
+        guard !isWorking else { return }
+        if settings.conversionCategory == .videoToGIF {
+            guard !isLoadingVideoMetadata else { return }
+            if let error = gifDurationError { errorMessage = error; return }
+        }
         guard let outputFolder = settings.outputFolderURL else {
             errorMessage = "Please choose a save location first"
             return
@@ -322,23 +366,38 @@ class MainViewModel: ObservableObject {
                 imageOutputFormat: settings.imageOutputFormat,
                 imageQuality: settings.imageConversionQuality,
                 videoOutputFormat: settings.videoOutputFormat,
-                pdfPassword: settings.conversionCategory == .pdfProtect ? settings.pdfPassword : nil
+                pdfPassword: settings.conversionCategory == .pdfProtect ? settings.pdfPassword : nil,
+                gifFramerate: settings.gifFramerate,
+                gifResolution: settings.gifResolution
             )
 
-            let result = try await conversionManager.convert(
-                inputURL: inputURL,
-                outputFolder: outputFolder,
-                category: settings.conversionCategory,
-                options: options
-            )
+            let category = settings.conversionCategory
+            let result: ConversionResult
+            if category == .videoToGIF {
+                let task = Task {
+                    try await conversionManager.convert(inputURL: inputURL, outputFolder: outputFolder,
+                                                        category: category, options: options)
+                }
+                gifConversionTask = task
+                defer { gifConversionTask = nil; isCancellingGIF = false }
+                result = try await task.value
+            } else {
+                result = try await conversionManager.convert(inputURL: inputURL, outputFolder: outputFolder,
+                                                             category: category, options: options)
+            }
 
             lastConversionResult = result
             statusMessage = "✓ Converted to \(result.outputFormat) (\(byteFormatter.string(fromByteCount: result.outputSize)))"
             isConverting = false
 
         } catch {
-            errorMessage = formatConversionError(error)
-            statusMessage = ""
+            if error is CancellationError {
+                errorMessage = nil
+                statusMessage = "GIF conversion cancelled."
+            } else {
+                errorMessage = formatConversionError(error)
+                statusMessage = ""
+            }
             isConverting = false
         }
     }

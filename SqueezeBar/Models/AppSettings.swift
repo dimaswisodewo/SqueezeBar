@@ -52,6 +52,8 @@ class AppSettings: ObservableObject {
     @Published var imageOutputFormat: ImageOutputFormat = .jpeg
     @Published var imageConversionQuality: Double = 0.85
     @Published var videoOutputFormat: VideoOutputFormat = .mp4
+    @Published var gifFramerate: Double = 10
+    @Published var gifResolution: GIFResolution = .pixels640
 
     // MARK: - PDF Password (ephemeral, NOT persisted to UserDefaults)
     @Published var pdfPassword: String = ""
@@ -68,6 +70,8 @@ class AppSettings: ObservableObject {
     private static let imageOutputFormatKey = "imageOutputFormat"
     private static let imageConversionQualityKey = "imageConversionQuality"
     private static let videoOutputFormatKey = "videoOutputFormat"
+    private static let gifFramerateKey = "gifFramerate"
+    private static let gifResolutionKey = "gifResolution"
 
     private var isAccessingSecurityScope = false {
         didSet {
@@ -160,6 +164,12 @@ class AppSettings: ObservableObject {
 
     /// Load conversion settings from UserDefaults
     private func loadConversionSettings() {
+        gifResolution = UserDefaults.standard.string(forKey: Self.gifResolutionKey)
+            .flatMap(GIFResolution.init(rawValue:)) ?? .pixels640
+        let savedFPS = UserDefaults.standard.double(forKey: Self.gifFramerateKey)
+        if savedFPS.isFinite && (1...30).contains(savedFPS) {
+            gifFramerate = savedFPS.rounded()
+        }
         if let raw = UserDefaults.standard.string(forKey: Self.conversionCategoryKey),
            let value = ConversionCategory(rawValue: raw) {
             conversionCategory = value
@@ -180,6 +190,8 @@ class AppSettings: ObservableObject {
 
     /// Save conversion settings to UserDefaults
     func saveConversionSettings() {
+        UserDefaults.standard.set(gifResolution.rawValue, forKey: Self.gifResolutionKey)
+        UserDefaults.standard.set(gifFramerate, forKey: Self.gifFramerateKey)
         UserDefaults.standard.set(conversionCategory.rawValue, forKey: Self.conversionCategoryKey)
         UserDefaults.standard.set(imageOutputFormat.rawValue, forKey: Self.imageOutputFormatKey)
         UserDefaults.standard.set(imageConversionQuality, forKey: Self.imageConversionQualityKey)

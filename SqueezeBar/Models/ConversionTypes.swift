@@ -12,6 +12,7 @@ enum FileAction: String, CaseIterable, Identifiable {
     case createPDF = "Create PDF"
     case videoFormat = "Convert video"
     case extractAudio = "Extract audio"
+    case createGIF = "Create GIF"
     case protectPDF = "Protect PDF"
 
     var id: String { rawValue }
@@ -22,6 +23,7 @@ enum FileAction: String, CaseIterable, Identifiable {
         case .imageFormat: return "Change image format"
         case .videoFormat: return "Change video format"
         case .extractAudio: return "Save audio"
+        case .createGIF: return "Create GIF"
         case .createPDF: return "Create PDF"
         case .protectPDF: return "Add password"
         }
@@ -34,6 +36,7 @@ enum FileAction: String, CaseIterable, Identifiable {
         case .createPDF: return .imageToPDF
         case .videoFormat: return .videoToVideo
         case .extractAudio: return .videoToAudio
+        case .createGIF: return .videoToGIF
         case .protectPDF: return .pdfProtect
         }
     }
@@ -61,6 +64,7 @@ enum ConversionCategory: String, CaseIterable, Identifiable, Hashable {
     case imageToImage = "Image Format"
     case imageToPDF   = "Image → PDF"
     case videoToVideo = "Video Format"
+    case videoToGIF = "Video → GIF"
     case videoToAudio = "Extract Audio"
     case pdfProtect   = "Lock PDF"
     var id: String { rawValue }
@@ -71,8 +75,31 @@ enum ConversionCategory: String, CaseIterable, Identifiable, Hashable {
         case .imageToPDF: return "Create PDF"
         case .videoToVideo: return "Change video format"
         case .videoToAudio: return "Save audio"
+        case .videoToGIF: return "Create GIF"
         case .pdfProtect: return "Add password"
         }
+    }
+}
+
+enum GIFResolution: String, CaseIterable, Identifiable, Hashable {
+    case pixels320 = "320"
+    case pixels640 = "640"
+    case pixels960 = "960"
+    case original
+
+    var id: String { rawValue }
+
+    var maximumEdge: Double? {
+        switch self {
+        case .pixels320: return 320
+        case .pixels640: return 640
+        case .pixels960: return 960
+        case .original: return nil
+        }
+    }
+
+    var displayName: String {
+        self == .original ? "Original" : "\(rawValue) px"
     }
 }
 

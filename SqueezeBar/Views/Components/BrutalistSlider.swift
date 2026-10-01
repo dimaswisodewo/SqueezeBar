@@ -8,6 +8,7 @@ struct BrutalistSlider: NSViewRepresentable {
     let step: Double
     var isDisabled = false
     var title = "Quality"
+    var accessibilityValueDescription: String? = nil
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.isEnabled) private var isEnabled
 
@@ -31,7 +32,7 @@ struct BrutalistSlider: NSViewRepresentable {
         slider.isEnabled = isEnabled && !isDisabled
         slider.appearance = NSAppearance(named: colorScheme == .dark ? .darkAqua : .aqua)
         slider.setAccessibilityLabel(title)
-        slider.setAccessibilityValueDescription("\(Int(value * 100)) percent")
+        slider.setAccessibilityValueDescription(accessibilityValueDescription ?? "\(Int(value * 100)) percent")
         slider.needsDisplay = true
     }
 

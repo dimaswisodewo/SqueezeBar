@@ -15,6 +15,7 @@ class ConversionManager {
         strategies = [
             .imageToImage: ImageFormatConverter(),
             .videoToVideo: VideoFormatConverter(),
+            .videoToGIF: VideoToGIFConverter(),
             .videoToAudio: VideoToAudioConverter(),
             .pdfProtect: PDFPasswordProtector()
         ]
@@ -85,6 +86,8 @@ class ConversionManager {
             ext = options.imageOutputFormat?.fileExtension ?? inputURL.pathExtension
         case .videoToVideo:
             ext = options.videoOutputFormat?.fileExtension ?? inputURL.pathExtension
+        case .videoToGIF:
+            ext = "gif"
         case .videoToAudio:
             ext = "m4a"
         case .imageToPDF, .pdfProtect:

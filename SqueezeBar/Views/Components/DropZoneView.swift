@@ -86,7 +86,7 @@ struct DropZoneView: View {
         switch conversionCategory {
         case .imageToPDF, .imageToImage: return ["JPG", "PNG", "HEIC"]
         case .pdfProtect: return ["PDF"]
-        case .videoToVideo, .videoToAudio: return ["MP4", "MOV", "M4V"]
+        case .videoToVideo, .videoToAudio, .videoToGIF: return ["MP4", "MOV", "M4V"]
         case nil: return ["IMG", "VIDEO", "PDF"]
         }
     }

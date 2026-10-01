@@ -11,6 +11,8 @@ struct ConversionOptions {
     var imageQuality: Double?         // 0.0–1.0 for lossy formats
     var videoOutputFormat: VideoOutputFormat?
     var pdfPassword: String?
+    var gifFramerate: Double? = nil
+    var gifResolution: GIFResolution = .pixels640
     // imageToPDF: input URL list passed separately to ConversionManager
 }
 

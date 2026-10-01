@@ -51,6 +51,8 @@ struct ConversionSettingsView: View {
                 imageConversionControls
             case .videoToVideo:
                 videoConversionControls
+            case .videoToGIF:
+                GIFConversionControls(settings: settings)
             case .videoToAudio:
                 audioExtractionInfo
             case .imageToPDF:
