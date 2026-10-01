@@ -11,6 +11,10 @@ import SwiftUI
 struct SqueezeBarApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
+    init() {
+        BundledFonts.register()
+    }
+
     var body: some Scene {
         // Empty - app runs only in menu bar
         Settings {

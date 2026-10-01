@@ -16,7 +16,6 @@ struct MainPopoverView: View {
     let onPreferredHeightChange: (CGFloat) -> CGFloat
     @ObservedObject private var viewModel = MainViewModel.shared
     @StateObject private var settings = AppSettings()
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @State private var dropTargeted = false
     @State private var draggedImage: URL?
@@ -26,18 +25,16 @@ struct MainPopoverView: View {
         self.onPreferredHeightChange = onPreferredHeightChange
     }
 
-    private let blue = Color(red: 0.24, green: 0.39, blue: 0.82)
-    private let violet = Color(red: 0.47, green: 0.33, blue: 0.76)
-    private var accent: LinearGradient {
-        LinearGradient(colors: [blue, violet], startPoint: .leading, endPoint: .trailing)
+    private var palette: DesignTokens.Palette { DesignTokens.Palette(colorScheme) }
+    private var isDropHighlighted: Bool { (dropTargeted || viewModel.isDragging) && !viewModel.isWorking }
+    private var isActionDisabled: Bool {
+        viewModel.selectedAction == .protectPDF && !settings.isPdfPasswordValid
     }
-    private var surface: Color { Color(nsColor: .controlBackgroundColor) }
+
     var body: some View {
         VStack(spacing: 0) {
             header
-                .background(GeometryReader { geometry in
-                    Color.clear.preference(key: PopoverHeightsKey.self, value: [.header: geometry.size.height])
-                })
+                .background(heightReader(.header))
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if let input = viewModel.selectedInput {
@@ -48,49 +45,36 @@ struct MainPopoverView: View {
                     } else {
                         emptyState
                     }
-                    if let error = viewModel.errorMessage { message(error, icon: "exclamationmark.circle.fill", color: .red) }
+                    if let error = viewModel.errorMessage {
+                        BrutalistStatusPanel(title: "Couldn't finish", message: error,
+                                             symbol: "exclamationmark.circle", tone: .error)
+                    }
                     if viewModel.isWorking { workingState }
                     if viewModel.resultURL != nil { resultState }
                 }
-                .padding(18)
+                .padding(DesignTokens.Spacing.outer)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(GeometryReader { geometry in
-                    Color.clear.preference(key: PopoverHeightsKey.self, value: [.workspace: geometry.size.height])
-                })
+                .background(heightReader(.workspace))
             }
-            Divider()
-            VStack(spacing: 12) {
+            Rectangle().fill(palette.outline).frame(height: DesignTokens.Geometry.border)
+            VStack(spacing: 16) {
                 saveFolder
                 if viewModel.selectedInput != nil && !viewModel.isWorking {
-                    Button { Task { await viewModel.process(settings: settings) } } label: {
-                        Label(viewModel.selectedAction.rawValue, systemImage: "arrow.right")
-                            .font(.system(size: 14, weight: .semibold))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 42)
-                            .foregroundStyle(.white)
-                            .background(accent, in: RoundedRectangle(cornerRadius: 12))
+                    BrutalistPrimaryButton(title: viewModel.selectedAction.rawValue,
+                                           isDisabled: isActionDisabled) {
+                        Task { await viewModel.process(settings: settings) }
                     }
-                    .buttonStyle(.plain)
-                    .disabled(viewModel.selectedAction == .protectPDF && !settings.isPdfPasswordValid)
-                    .opacity(viewModel.selectedAction == .protectPDF && !settings.isPdfPasswordValid ? 0.5 : 1)
                     .keyboardShortcut(.return, modifiers: .command)
                 }
             }
-            .padding(18)
-            .background(surface)
-            .background(GeometryReader { geometry in
-                Color.clear.preference(key: PopoverHeightsKey.self, value: [.footer: geometry.size.height])
-            })
+            .padding(DesignTokens.Spacing.outer)
+            .background(palette.surface)
+            .background(heightReader(.footer))
         }
-        .frame(width: 420, height: displayedHeight)
-        .background {
-            LinearGradient(
-                colors: colorScheme == .dark
-                    ? [Color(red: 0.12, green: 0.15, blue: 0.25), Color(red: 0.18, green: 0.15, blue: 0.26)]
-                    : [Color(red: 0.93, green: 0.96, blue: 1), Color(red: 0.95, green: 0.93, blue: 0.99)],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-        }
+        .frame(width: DesignTokens.Geometry.popoverWidth, height: displayedHeight)
+        .foregroundStyle(palette.ink)
+        .background(palette.canvas)
+        .tint(palette.accent)
         .onDrop(of: [UTType.fileURL], isTargeted: $dropTargeted) { providers in
             guard !viewModel.isWorking else { return false }
             return viewModel.handleMultiDrop(providers: providers)
@@ -98,254 +82,358 @@ struct MainPopoverView: View {
         .onPreferenceChange(PopoverHeightsKey.self) { heights in
             guard let header = heights[.header], let workspace = heights[.workspace],
                   let footer = heights[.footer] else { return }
-            let height = onPreferredHeightChange(header + workspace + footer + 1)
+            let height = onPreferredHeightChange(header + workspace + footer + DesignTokens.Geometry.border)
             if abs(displayedHeight - height) > 1 { displayedHeight = height }
         }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: viewModel.selectedInput)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: viewModel.isWorking)
+    }
+
+    private func heightReader(_ section: PopoverSection) -> some View {
+        GeometryReader { geometry in
+            Color.clear.preference(key: PopoverHeightsKey.self, value: [section: geometry.size.height])
+        }
     }
 
     private var header: some View {
-        HStack {
-            Image("SqueezeBar-macOS-Default").resizable().frame(width: 25, height: 25)
-            Text("SqueezeBar").font(.system(size: 16, weight: .semibold))
+        HStack(spacing: 10) {
+            BrutalistMark()
+            VStack(alignment: .leading, spacing: 2) {
+                Text("SQUEEZEBAR").font(DesignTokens.Typography.title).tracking(-0.6)
+                Text("LESS SIZE. SAME POTENTIAL.")
+                    .font(DesignTokens.Typography.metadata).tracking(0.2)
+                    .foregroundStyle(palette.muted)
+            }
             Spacer()
             if viewModel.selectedInput != nil {
-                Button("Add a file") { viewModel.openFilePicker() }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(blue)
-                    .disabled(viewModel.isWorking)
+                Button { viewModel.openFilePicker() } label: {
+                    Image(systemName: "plus").font(DesignTokens.Typography.heading)
+                        .frame(width: 32, height: 32)
+                        .background(palette.inset, in: Rectangle())
+                }
+                .buttonStyle(BrutalistButtonStyle())
+                .accessibilityLabel("Add a file")
+                .help("Choose a file or images to replace the selection")
+                .disabled(viewModel.isWorking)
             }
         }
-        .padding(.horizontal, 18).padding(.vertical, 14)
-        .background(surface)
+        .padding(.horizontal, DesignTokens.Spacing.outer)
+        .padding(.vertical, 16)
+        .background(palette.surface)
+        .overlay(alignment: .bottom) { Rectangle().fill(palette.outline).frame(height: DesignTokens.Geometry.border) }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "square.and.arrow.down")
-                .font(.system(size: 34, weight: .light))
-                .foregroundStyle(accent)
-            Text("Start with a file").font(.system(size: 20, weight: .semibold))
-            Text("Drop an image, video, or PDF here. Select several images to create one PDF.")
-                .font(.system(size: 12)).foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Button("Add a file") { viewModel.openFilePicker() }
-                .buttonStyle(.borderedProminent)
-                .tint(blue)
+        BrutalistDropSurface(isHighlighted: isDropHighlighted) {
+            VStack(spacing: 0) {
+                Image(systemName: "arrow.down.document")
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundStyle(DesignTokens.Colors.black)
+                    .frame(width: 64, height: 64)
+                    .background(palette.accent)
+                    .overlay(Rectangle().strokeBorder(palette.outline, lineWidth: DesignTokens.Geometry.border))
+                    .accessibilityHidden(true)
+                    .padding(.bottom, 20)
+                Text(isDropHighlighted ? "DROP IT.\nSQUEEZE IT." : "LESS SIZE.\nMORE SPACE.")
+                    .font(DesignTokens.Typography.hero).tracking(-0.8).multilineTextAlignment(.center)
+                    .padding(.bottom, 10)
+                HStack(spacing: 8) {
+                    BrutalistBadge(title: "IMG")
+                    BrutalistBadge(title: "VIDEO")
+                    BrutalistBadge(title: "PDF")
+                }
+                .padding(.bottom, 16)
+                Text("Drop an image, video, or PDF.\nSelect several images to create one PDF.")
+                    .font(DesignTokens.Typography.body).foregroundStyle(isDropHighlighted ? DesignTokens.Colors.black : palette.muted)
+                    .multilineTextAlignment(.center).lineSpacing(4)
+                    .padding(.bottom, 24)
+                BrutalistPrimaryButton(title: "Choose a file", isDisabled: false) {
+                    viewModel.openFilePicker()
+                }
+                HStack(spacing: 6) {
+                    Image(systemName: "lock.shield")
+                    Text("Your files stay on your Mac")
+                }
+                .font(DesignTokens.Typography.caption).foregroundStyle(isDropHighlighted ? DesignTokens.Colors.black : palette.muted)
+                .padding(.top, 16)
+            }
+            .padding(.horizontal, 24).padding(.vertical, 28)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 32).padding(.vertical, 34)
-        .background(surface, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(dropTargeted ? blue : blue.opacity(0.16), lineWidth: dropTargeted ? 2 : 1))
     }
 
     private var selectedDropArea: some View {
-        HStack(spacing: 9) {
-            Image(systemName: "square.and.arrow.down")
-                .font(.system(size: 15))
-            Text(viewModel.isWorking
-                 ? "Wait for the current job to finish"
-                 : "Drop a file or images to replace selection")
-                .font(.system(size: 12, weight: .medium))
-            Spacer()
+        BrutalistDropSurface(isHighlighted: isDropHighlighted) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.down.to.line")
+                Text(viewModel.isWorking ? "File selection is paused while working" : "Drop a file or images to replace")
+                    .font(DesignTokens.Typography.heading)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(isDropHighlighted ? DesignTokens.Colors.black : palette.muted)
+            .padding(.horizontal, 12).padding(.vertical, 12)
         }
-        .foregroundStyle(viewModel.isWorking ? Color.secondary : blue)
-        .padding(.horizontal, 12)
-        .frame(height: 42)
-        .background(dropTargeted && !viewModel.isWorking ? blue.opacity(0.12) : surface,
-                    in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10)
-            .strokeBorder(dropTargeted && !viewModel.isWorking ? blue : blue.opacity(0.4),
-                          style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
         .accessibilityLabel(viewModel.isWorking
             ? "File drop unavailable while processing"
             : "Drop a file or images to replace selection")
     }
 
     private func inputCard(_ input: SelectedInput) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("INPUT").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
-                Spacer()
-                Button("Remove") { viewModel.removeAttachedFile() }
-                    .buttonStyle(.plain).foregroundStyle(.secondary).disabled(viewModel.isWorking)
-            }
-            switch input {
-            case .single(let url):
-                Label(url.lastPathComponent, systemImage: "doc")
-                    .font(.system(size: 13, weight: .medium)).lineLimit(2)
-                if let type = viewModel.fileTypeHint, let size = viewModel.fileSizeString {
-                    Text("\(type) · \(size)").font(.system(size: 11)).foregroundStyle(.secondary)
+        BrutalistPanel {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    BrutalistSectionLabel(title: "Source")
+                    Spacer()
+                    Button("Remove") { viewModel.removeAttachedFile() }
+                        .font(DesignTokens.Typography.heading)
+                        .foregroundStyle(palette.muted)
+                        .buttonStyle(BrutalistQuietButtonStyle())
+                        .disabled(viewModel.isWorking)
                 }
-            case .images(let urls):
-                Text("\(urls.count) images · drag to reorder pages")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
-                ForEach(Array(urls.enumerated()), id: \.element) { index, url in
-                    HStack(spacing: 8) {
-                        Image(systemName: "line.3.horizontal").foregroundStyle(.secondary)
-                        Text("\(index + 1).").monospacedDigit().foregroundStyle(.secondary)
-                        Text(url.lastPathComponent).lineLimit(1)
-                        Spacer()
-                        Button { viewModel.moveImage(from: index, to: index - 1) } label: {
-                            Image(systemName: "chevron.up")
-                        }.disabled(index == 0 || viewModel.isWorking).accessibilityLabel("Move \(url.lastPathComponent) up")
-                        Button { viewModel.moveImage(from: index, to: index + 1) } label: {
-                            Image(systemName: "chevron.down")
-                        }.disabled(index == urls.count - 1 || viewModel.isWorking).accessibilityLabel("Move \(url.lastPathComponent) down")
-                    }
-                    .font(.system(size: 12))
-                    .padding(7)
-                    .background(blue.opacity(0.07), in: RoundedRectangle(cornerRadius: 7))
-                    .onDrag { draggedImage = url; return NSItemProvider(object: url.absoluteString as NSString) }
-                    .onDrop(of: [UTType.utf8PlainText], isTargeted: nil) { _ in
-                        if let source = draggedImage, let from = urls.firstIndex(of: source) {
-                            viewModel.moveImage(from: from, to: index)
+                switch input {
+                case .single(let url):
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: sourceSymbol(for: url))
+                            .font(.system(size: 21, weight: .light))
+                            .foregroundStyle(palette.ink)
+                            .frame(width: 44, height: 48)
+                            .background(palette.inset, in: Rectangle())
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(url.lastPathComponent)
+                                .font(DesignTokens.Typography.heading)
+                                .lineLimit(2).truncationMode(.middle)
+                            if let type = viewModel.fileTypeHint, let size = viewModel.fileSizeString {
+                                Text("\(type)  ·  \(size)")
+                                    .font(DesignTokens.Typography.metadata).foregroundStyle(palette.muted)
+                            }
                         }
-                        draggedImage = nil
-                        return true
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                case .images(let urls):
+                    Text("\(urls.count) images · drag to reorder pages")
+                        .font(DesignTokens.Typography.caption).foregroundStyle(palette.muted)
+                    VStack(spacing: 5) {
+                        ForEach(Array(urls.enumerated()), id: \.element) { index, url in
+                            imageRow(url, index: index, count: urls.count)
+                                .onDrag {
+                                    guard !viewModel.isWorking else { return NSItemProvider() }
+                                    draggedImage = url
+                                    return NSItemProvider(object: url.absoluteString as NSString)
+                                }
+                                .onDrop(of: [UTType.utf8PlainText], isTargeted: nil) { _ in
+                                    guard !viewModel.isWorking else { return false }
+                                    if let source = draggedImage, let from = urls.firstIndex(of: source) {
+                                        viewModel.moveImage(from: from, to: index)
+                                    }
+                                    draggedImage = nil
+                                    return true
+                                }
+                        }
                     }
                 }
             }
         }
-        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-        .background(surface, in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func imageRow(_ url: URL, index: Int, count: Int) -> some View {
+        HStack(spacing: 8) {
+            Text(String(format: "%02d", index + 1))
+                .font(DesignTokens.Typography.label)
+                .foregroundStyle(palette.ink).frame(width: 22)
+            Text(url.lastPathComponent).lineLimit(1).truncationMode(.middle)
+            Spacer(minLength: 0)
+            Button { viewModel.moveImage(from: index, to: index - 1) } label: {
+                Image(systemName: "chevron.up").frame(width: 22, height: 26)
+            }
+            .disabled(index == 0 || viewModel.isWorking)
+            .accessibilityLabel("Move \(url.lastPathComponent) up")
+            Button { viewModel.moveImage(from: index, to: index + 1) } label: {
+                Image(systemName: "chevron.down").frame(width: 22, height: 26)
+            }
+            .disabled(index == count - 1 || viewModel.isWorking)
+            .accessibilityLabel("Move \(url.lastPathComponent) down")
+        }
+        .font(DesignTokens.Typography.caption).buttonStyle(BrutalistQuietButtonStyle())
+        .padding(.horizontal, 9).padding(.vertical, 4)
+        .background(palette.inset, in: Rectangle())
     }
 
     private var actionPicker: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("ACTION").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+            BrutalistSectionLabel(title: "What would you like to do?")
             ForEach(viewModel.availableActions) { action in
-                Button { viewModel.selectedAction = action } label: {
-                    HStack {
-                        Text(action.rawValue)
-                        Spacer()
-                        if action == viewModel.selectedAction { Image(systemName: "checkmark.circle.fill") }
-                    }
-                    .font(.system(size: 13, weight: .medium))
-                    .padding(.horizontal, 12).padding(.vertical, 10)
-                    .foregroundStyle(action == viewModel.selectedAction ? blue : Color.primary)
-                    .background(action == viewModel.selectedAction ? blue.opacity(0.12) : surface,
-                                in: RoundedRectangle(cornerRadius: 9))
+                BrutalistActionRow(title: action.rawValue, symbol: actionSymbol(action),
+                                   isSelected: action == viewModel.selectedAction,
+                                   isDisabled: viewModel.isWorking) {
+                    viewModel.selectedAction = action
                 }
-                .buttonStyle(.plain).disabled(viewModel.isWorking)
             }
         }
     }
 
-    @ViewBuilder private var controls: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            switch viewModel.selectedAction {
-            case .compress:
-                Picker("Quality", selection: $settings.compressionQuality) {
-                    ForEach(CompressionQuality.allCases) { Text($0.rawValue).tag($0) }
-                }
-                if settings.compressionQuality == .custom {
-                    valueRow("Custom quality", "\(Int(settings.customQuality * 100))%")
-                    Slider(value: $settings.customQuality, in: 0.1...1, step: 0.05)
-                }
-                if viewModel.isCurrentFileVideo {
-                    Toggle("Reduce frame rate", isOn: $settings.enableFramerateReduction)
-                        .onChange(of: settings.enableFramerateReduction) { enabled in
-                            if enabled && settings.targetFramerate == nil { settings.targetFramerate = 30 }
-                            settings.saveFramerateSettings()
-                        }
-                    if settings.enableFramerateReduction {
-                        Picker("Target frame rate", selection: Binding(
-                            get: { settings.targetFramerate ?? 30 },
-                            set: { settings.targetFramerate = $0; settings.saveFramerateSettings() }
-                        )) {
-                            ForEach([15.0, 24.0, 30.0, 60.0], id: \.self) { Text("\(Int($0)) fps").tag($0) }
+    private var controls: some View {
+        BrutalistPanel {
+            VStack(alignment: .leading, spacing: 16) {
+                switch viewModel.selectedAction {
+                case .compress:
+                    BrutalistSectionLabel(title: "Quality")
+                    choiceGrid(CompressionQuality.allCases, columns: 3,
+                               selected: settings.compressionQuality, label: { $0.rawValue }) {
+                        settings.compressionQuality = $0
+                    }
+                    Text(settings.compressionQuality.hint)
+                        .font(DesignTokens.Typography.caption).foregroundStyle(palette.muted)
+                    if settings.compressionQuality == .custom {
+                        qualitySlider("Custom quality", value: $settings.customQuality)
+                    }
+                    if viewModel.isCurrentFileVideo {
+                        Rectangle().fill(palette.outline).frame(height: DesignTokens.Geometry.border)
+                        Toggle("Reduce frame rate", isOn: $settings.enableFramerateReduction)
+                            .toggleStyle(BrutalistToggleStyle())
+                            .font(DesignTokens.Typography.heading)
+                            .onChange(of: settings.enableFramerateReduction) { enabled in
+                                if enabled && settings.targetFramerate == nil { settings.targetFramerate = 30 }
+                                settings.saveFramerateSettings()
+                            }
+                        if settings.enableFramerateReduction {
+                            choiceGrid([15.0, 24.0, 30.0, 60.0], columns: 4,
+                                       selected: settings.targetFramerate ?? 30,
+                                       label: { "\(Int($0)) fps" }) {
+                                settings.targetFramerate = $0
+                                settings.saveFramerateSettings()
+                            }
+                            .accessibilityElement(children: .contain)
+                            .accessibilityLabel("Target frame rate")
                         }
                     }
-                }
-            case .imageFormat:
-                Picker("Output format", selection: $settings.imageOutputFormat) {
-                    ForEach(ImageOutputFormat.allCases) { Text($0.displayName).tag($0) }
-                }.onChange(of: settings.imageOutputFormat) { _ in settings.saveConversionSettings() }
-                if settings.imageOutputFormat == .jpeg || settings.imageOutputFormat == .heic {
-                    valueRow("Quality", "\(Int(settings.imageConversionQuality * 100))%")
-                    Slider(value: $settings.imageConversionQuality, in: 0.1...1, step: 0.05)
-                        .onChange(of: settings.imageConversionQuality) { _ in settings.saveConversionSettings() }
-                }
-            case .videoFormat:
-                Picker("Output format", selection: $settings.videoOutputFormat) {
-                    ForEach(VideoOutputFormat.allCases) { Text($0.displayName).tag($0) }
-                }.onChange(of: settings.videoOutputFormat) { _ in settings.saveConversionSettings() }
-            case .extractAudio:
-                Text("Saves the audio track as M4A.").foregroundStyle(.secondary)
-            case .createPDF:
-                Text("Images become PDF pages in the order shown above.").foregroundStyle(.secondary)
-            case .protectPDF:
-                SecureField("Password", text: $settings.pdfPassword)
-                SecureField("Confirm password", text: $settings.pdfPasswordConfirm)
-                if !settings.pdfPassword.isEmpty && !settings.isPdfPasswordValid {
-                    Text("Passwords do not match.").foregroundStyle(.red)
+                case .imageFormat:
+                    BrutalistSectionLabel(title: "Output format")
+                    choiceGrid(ImageOutputFormat.allCases, columns: 3,
+                               selected: settings.imageOutputFormat, label: { $0.displayName }) {
+                        settings.imageOutputFormat = $0
+                        settings.saveConversionSettings()
+                    }
+                    if settings.imageOutputFormat == .jpeg || settings.imageOutputFormat == .heic {
+                        qualitySlider("Quality", value: $settings.imageConversionQuality)
+                            .onChange(of: settings.imageConversionQuality) { _ in settings.saveConversionSettings() }
+                    }
+                case .videoFormat:
+                    BrutalistSectionLabel(title: "Output format")
+                    choiceGrid(VideoOutputFormat.allCases, columns: 3,
+                               selected: settings.videoOutputFormat, label: { $0.displayName }) {
+                        settings.videoOutputFormat = $0
+                        settings.saveConversionSettings()
+                    }
+                case .extractAudio:
+                    BrutalistSectionLabel(title: "Audio output")
+                    Label("Saves the audio track as M4A.", systemImage: "waveform")
+                        .font(DesignTokens.Typography.body).foregroundStyle(palette.muted)
+                case .createPDF:
+                    BrutalistSectionLabel(title: "Page order")
+                    Text("Images become PDF pages in the order shown above.")
+                        .font(DesignTokens.Typography.body).foregroundStyle(palette.muted)
+                case .protectPDF:
+                    BrutalistSectionLabel(title: "Password protection")
+                    passwordField("Password", text: $settings.pdfPassword)
+                    passwordField("Confirm password", text: $settings.pdfPasswordConfirm)
+                    if !settings.pdfPassword.isEmpty && !settings.isPdfPasswordValid {
+                        Label("Passwords do not match.", systemImage: "exclamationmark.circle")
+                            .font(DesignTokens.Typography.caption).foregroundStyle(palette.ink)
+                    }
                 }
             }
         }
-        .font(.system(size: 12))
-        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-        .background(surface, in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func choiceGrid<T: Hashable>(_ options: [T], columns: Int, selected: T,
+                                         label: @escaping (T) -> String, select: @escaping (T) -> Void) -> some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: columns), spacing: 8) {
+            ForEach(options, id: \.self) { option in
+                BrutalistChoiceChip(title: label(option), isSelected: selected == option) { select(option) }
+            }
+        }
+    }
+
+    private func qualitySlider(_ title: String, value: Binding<Double>) -> some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text(title).font(DesignTokens.Typography.heading)
+                Spacer()
+                Text("\(Int(value.wrappedValue * 100))%")
+                    .font(DesignTokens.Typography.label)
+                    .foregroundStyle(palette.ink)
+                    .padding(.horizontal, 7).padding(.vertical, 4)
+                    .background(palette.accent)
+                    .foregroundStyle(DesignTokens.Colors.black)
+            }
+            BrutalistSlider(value: value, range: 0.1...1, step: 0.05, title: title)
+                .frame(height: 32)
+                .accessibilityLabel(title)
+                .accessibilityValue("\(Int(value.wrappedValue * 100)) percent")
+        }
+    }
+
+    private func passwordField(_ title: String, text: Binding<String>) -> some View {
+        BrutalistSecureField(title: title, text: text)
     }
 
     private var saveFolder: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "folder").foregroundStyle(blue)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("SAVE FOLDER").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
-                Text(settings.outputFolderURL?.lastPathComponent ?? "No folder selected")
-                    .font(.system(size: 12)).lineLimit(1)
-            }
-            Spacer()
-            Button(settings.outputFolderURL == nil ? "Choose save folder" : "Change") {
-                let panel = NSOpenPanel()
-                panel.canChooseFiles = false
-                panel.canChooseDirectories = true
-                panel.canCreateDirectories = true
-                panel.prompt = "Choose"
-                if panel.runModal() == .OK { settings.outputFolderURL = panel.url }
-            }
-            .buttonStyle(.plain).foregroundStyle(blue).disabled(viewModel.isWorking)
-        }
+        OutputFolderSectionView(settings: settings, isDisabled: viewModel.isWorking,
+                                panelMessage: "Choose where to save processed files", compact: true)
     }
 
     private var workingState: some View {
-        HStack(spacing: 10) {
-            ProgressView().controlSize(.small)
-            Text(viewModel.statusMessage.isEmpty ? "Working…" : viewModel.statusMessage)
-                .font(.system(size: 12))
+        BrutalistPanel {
+            HStack(spacing: 12) {
+                ProgressView().controlSize(.small).tint(palette.ink)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("WORKING.").font(DesignTokens.Typography.title)
+                    Text(viewModel.statusMessage.isEmpty ? "Working locally on your Mac…" : viewModel.statusMessage)
+                        .font(DesignTokens.Typography.caption).foregroundStyle(palette.muted)
+                }
+            }
         }
-        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-        .background(surface, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var resultState: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("Done", systemImage: "checkmark.circle.fill")
-                .font(.system(size: 14, weight: .semibold)).foregroundStyle(.green)
-            if let url = viewModel.resultURL {
-                Text(url.lastPathComponent).font(.system(size: 12, weight: .medium)).lineLimit(2)
+        BrutalistPanel {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark").font(.system(size: 18, weight: .black))
+                        .foregroundStyle(DesignTokens.Colors.black).frame(width: 32, height: 32)
+                        .background(palette.accent)
+                    Text("DONE.").font(DesignTokens.Typography.title)
+                }
+                if let url = viewModel.resultURL {
+                    Text(url.lastPathComponent).font(DesignTokens.Typography.heading)
+                        .lineLimit(2).truncationMode(.middle)
+                }
+                Text(viewModel.statusMessage).font(DesignTokens.Typography.caption).foregroundStyle(palette.muted)
+                HStack(spacing: 16) {
+                    Button { viewModel.showResultInFinder() } label: {
+                        Label("Show in Finder", systemImage: "arrow.up.right")
+                    }
+                    .foregroundStyle(palette.ink)
+                    Spacer()
+                    Button("Dismiss") { viewModel.dismissResult() }.foregroundStyle(palette.muted)
+                }
+                .font(DesignTokens.Typography.heading)
+                .buttonStyle(BrutalistQuietButtonStyle())
             }
-            Text(viewModel.statusMessage).font(.system(size: 11)).foregroundStyle(.secondary)
-            HStack {
-                Button("Show in Finder") { viewModel.showResultInFinder() }
-                Button("Dismiss") { viewModel.dismissResult() }
-            }
-            .buttonStyle(.borderless).foregroundStyle(blue)
         }
-        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-        .background(surface, in: RoundedRectangle(cornerRadius: 12))
     }
 
-    private func message(_ text: String, icon: String, color: Color) -> some View {
-        Label(text, systemImage: icon)
-            .font(.system(size: 12)).foregroundStyle(color)
-            .padding(12).frame(maxWidth: .infinity, alignment: .leading)
-            .background(surface, in: RoundedRectangle(cornerRadius: 10))
+    private func sourceSymbol(for url: URL) -> String {
+        if viewModel.isCurrentFileVideo { return "film" }
+        if url.pathExtension.lowercased() == "pdf" { return "doc.richtext" }
+        return "photo"
     }
 
-    private func valueRow(_ title: String, _ value: String) -> some View {
-        HStack { Text(title); Spacer(); Text(value).foregroundStyle(.secondary) }
+    private func actionSymbol(_ action: FileAction) -> String {
+        switch action {
+        case .compress: return "arrow.down.right.and.arrow.up.left"
+        case .imageFormat: return "photo"
+        case .videoFormat: return "film"
+        case .extractAudio: return "waveform"
+        case .createPDF: return "doc.on.doc"
+        case .protectPDF: return "lock"
+        }
     }
 }

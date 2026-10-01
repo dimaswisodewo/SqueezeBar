@@ -1,10 +1,3 @@
-//
-//  ProgressIndicatorView.swift
-//  SqueezeBar
-//
-//  Created by Dimas Wisodewo on 15/12/25.
-//
-
 import SwiftUI
 
 struct ProgressIndicatorView: View {
@@ -12,25 +5,24 @@ struct ProgressIndicatorView: View {
     let message: String
 
     var body: some View {
-        HStack(spacing: 8) {
-            if isCompressing {
-                ProgressView()
-                    .controlSize(.small)
-                    .scaleEffect(0.8)
-            }
-
-            Text(message)
-                .font(.caption)
-                .foregroundColor(isCompressing ? .accentColor : .secondary)
+        HStack(spacing: 12) {
+            if isCompressing { ProgressView().controlSize(.small) }
+            Text(message).font(DesignTokens.Typography.body)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
+        .foregroundStyle(DesignTokens.Colors.ink)
+        .tint(DesignTokens.Colors.ink)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(DesignTokens.Colors.inset)
+        .overlay(Rectangle().strokeBorder(DesignTokens.Colors.ink, lineWidth: DesignTokens.Geometry.border))
     }
 }
 
 #Preview {
-    VStack {
-        ProgressIndicatorView(isCompressing: false, message: "Drag a file here")
-        ProgressIndicatorView(isCompressing: true, message: "Compressing...")
+    VStack(spacing: 16) {
+        ProgressIndicatorView(isCompressing: false, message: "Drop a file here")
+        ProgressIndicatorView(isCompressing: true, message: "Working locally…")
     }
+    .padding(20)
 }

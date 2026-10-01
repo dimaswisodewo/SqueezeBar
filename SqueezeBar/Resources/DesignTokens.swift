@@ -1,72 +1,61 @@
-//
-//  DesignTokens.swift
-//  SqueezeBar
-//
-//  Created by Dimas Wisodewo on 16/12/25.
-//
-
 import SwiftUI
+import CoreText
 
 enum DesignTokens {
-    // MARK: - Candy Colors
+    enum Colors {
+        static let black = Color(red: 10 / 255, green: 10 / 255, blue: 10 / 255)
+        static let white = Color.white
+        static let lime = Color(red: 198 / 255, green: 1, blue: 0)
+        static let yellow = Color(red: 245 / 255, green: 1, blue: 0)
 
-    enum Candy {
-        /// Primary blue — buttons, active states
-        static let blue = Color(red: 0.29, green: 0.565, blue: 0.969)      // #4A90F7
-        /// Pink — drag hover state
-        static let pink = Color(red: 1.0, green: 0.42, blue: 0.616)        // #FF6B9D
-        /// Mint — success states
-        static let mint = Color(red: 0.212, green: 0.827, blue: 0.6)       // #36D399
-        /// Peach — warnings
-        static let peach = Color(red: 1.0, green: 0.541, blue: 0.396)      // #FF8A65
-        /// Coral — errors
-        static let coral = Color(red: 1.0, green: 0.322, blue: 0.322)      // #FF5252
-        /// Lavender — section headers
-        static let lavender = Color(red: 0.702, green: 0.616, blue: 0.859) // #B39DDB
-        /// Lemon — celebration accents
-        static let lemon = Color(red: 1.0, green: 0.835, blue: 0.31)       // #FFD54F
+        static let canvas = adaptive(light: .white, dark: NSColor(white: 10 / 255, alpha: 1))
+        static let ink = adaptive(light: NSColor(white: 10 / 255, alpha: 1), dark: .white)
+        static let muted = adaptive(light: NSColor(white: 0.36, alpha: 1), dark: NSColor(white: 0.73, alpha: 1))
+        static let inset = adaptive(light: NSColor(white: 0.94, alpha: 1), dark: NSColor(white: 0.12, alpha: 1))
 
-        static let bgCard = Color(NSColor.controlBackgroundColor)
+        private static func adaptive(light: NSColor, dark: NSColor) -> Color {
+            Color(nsColor: NSColor(name: nil) { appearance in
+                appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
+            })
+        }
     }
 
-    // MARK: - Legacy aliases
+    struct Palette {
+        let canvas: Color
+        let surface: Color
+        let inset: Color
+        let ink: Color
+        let muted: Color
+        let outline: Color
+        let accent = Colors.lime
+        let notice = Colors.yellow
 
-    static let primaryAccent = Candy.blue
-    static let successGreen = Candy.mint
-    static let errorRed = Candy.coral
-    static let warningOrange = Candy.peach
-    static let dropZoneIdle = Candy.blue.opacity(0.05)
-    static let dropZoneDragging = Candy.pink.opacity(0.1)
-    static let dropZoneSuccess = Candy.mint.opacity(0.08)
-    static let cardBackground = Color(NSColor.controlBackgroundColor)
-
-    // MARK: - Typography
+        init(_ scheme: ColorScheme) {
+            canvas = scheme == .dark ? Colors.black : Colors.white
+            surface = canvas
+            inset = scheme == .dark ? Color(white: 0.12) : Color(white: 0.94)
+            ink = scheme == .dark ? Colors.white : Colors.black
+            muted = scheme == .dark ? Color(white: 0.73) : Color(white: 0.36)
+            outline = ink
+        }
+    }
 
     enum Typography {
-        static let title   = Font.system(size: 16, weight: .bold,     design: .rounded)
-        static let heading = Font.system(size: 13, weight: .semibold,  design: .rounded)
-        static let body    = Font.system(size: 12, weight: .medium,    design: .rounded)
-        static let caption = Font.system(size: 11, weight: .regular,   design: .rounded)
-        static let tiny    = Font.system(size: 10, weight: .medium,    design: .rounded)
+        static var hero: Font { custom("ArchivoBlack-Regular", size: 28) }
+        static var title: Font { custom("ArchivoBlack-Regular", size: 20) }
+        static var heading: Font { custom("IBMPlexSans-SmBld", size: 13) }
+        static var body: Font { custom("IBMPlexSans", size: 13) }
+        static var caption: Font { custom("IBMPlexSans", size: 11) }
+        static var label: Font { custom("IBMPlexMono-Medium", size: 11) }
+        static var metadata: Font { custom("IBMPlexMono-Regular", size: 11) }
+        static var tiny: Font { caption }
+
+        private static func custom(_ name: String, size: CGFloat) -> Font {
+            // Previews don't run the app entry point, so registration is also lazy.
+            BundledFonts.register()
+            return .custom(name, fixedSize: size)
+        }
     }
-
-    // MARK: - Shadows
-
-    enum Shadow {
-        static let toy        = (color: Color.black.opacity(0.08), radius: CGFloat(3), x: CGFloat(0), y: CGFloat(2))
-        static let toyLifted  = (color: Color.black.opacity(0.12), radius: CGFloat(6), x: CGFloat(0), y: CGFloat(3))
-        static let glow       = (color: Candy.blue.opacity(0.25),  radius: CGFloat(8), x: CGFloat(0), y: CGFloat(2))
-        static let successGlow = (color: Candy.mint.opacity(0.25), radius: CGFloat(6), x: CGFloat(0), y: CGFloat(1))
-
-        // Legacy aliases
-        static let subtle      = toy
-        static let elevated    = toyLifted
-        static let accentGlow  = glow
-        static let buttonHover = toyLifted
-        static let message     = toy
-    }
-
-    // MARK: - Spacing
 
     enum Spacing {
         static let xs: CGFloat = 4
@@ -74,14 +63,44 @@ enum DesignTokens {
         static let md: CGFloat = 12
         static let lg: CGFloat = 16
         static let xl: CGFloat = 24
+        static let outer: CGFloat = 20
     }
 
-    // MARK: - Corner Radius
+    enum Geometry {
+        static let border: CGFloat = 2
+        static let shadowOffset: CGFloat = 3
+        static let controlHeight: CGFloat = 36
+        static let actionHeight: CGFloat = 44
+        static let popoverWidth: CGFloat = 420
+    }
 
-    enum CornerRadius {
-        static let small:  CGFloat = 10
-        static let medium: CGFloat = 14
-        static let large:  CGFloat = 20
-        static let pill:   CGFloat = 50
+    enum Motion {
+        static let press = Animation.easeOut(duration: 0.12)
+    }
+}
+
+enum BundledFonts {
+    static let names = [
+        "ArchivoBlack-Regular", "IBMPlexSans-Regular", "IBMPlexSans-SemiBold",
+        "IBMPlexMono-Regular", "IBMPlexMono-Medium"
+    ]
+
+    private static let registration: Void = {
+        for name in names {
+            guard let url = Bundle.main.url(forResource: name, withExtension: "ttf") else {
+                NSLog("Missing bundled font: %@", name)
+                continue
+            }
+            var error: Unmanaged<CFError>?
+            if !CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error),
+               let fontError = error?.takeRetainedValue(),
+               CFErrorGetCode(fontError) != CTFontManagerError.alreadyRegistered.rawValue {
+                NSLog("Could not register font %@: %@", name, String(describing: fontError))
+            }
+        }
+    }()
+
+    static func register() {
+        _ = registration
     }
 }

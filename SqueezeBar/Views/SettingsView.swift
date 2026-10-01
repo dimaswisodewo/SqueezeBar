@@ -50,15 +50,17 @@ struct SettingsView: View {
                 viewModel.removeAttachedFileWithoutResetingStatusMessage()
             }
         }
-        .padding()
+        .padding(DesignTokens.Spacing.outer)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .foregroundStyle(DesignTokens.Colors.ink)
+        .background(DesignTokens.Colors.canvas)
     }
 
     // MARK: - Quality Controls
 
     private var qualityControls: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            ToySegmentedPicker(
+            BrutalistChoicePicker(
                 selection: $compressionQuality,
                 options: CompressionQuality.allCases.map { $0 },
                 label: { $0.rawValue },
@@ -72,7 +74,7 @@ struct SettingsView: View {
 
             Text(compressionQuality.hint)
                 .font(DesignTokens.Typography.tiny)
-                .foregroundStyle(Color.secondary)
+                .foregroundStyle(DesignTokens.Colors.muted)
 
             if compressionQuality == .custom {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
@@ -81,16 +83,17 @@ struct SettingsView: View {
                             .font(DesignTokens.Typography.caption)
                         Spacer()
                         Text("\(Int(customQuality * 100))%")
-                            .font(Font.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundStyle(DesignTokens.Candy.blue)
+                            .font(DesignTokens.Typography.metadata)
+                            .foregroundStyle(DesignTokens.Colors.ink)
                     }
 
-                    ToySlider(
+                    BrutalistSlider(
                         value: $customQuality,
                         range: 0.1...1.0,
                         step: 0.05,
                         isDisabled: viewModel.isCompressing
                     )
+                    .frame(height: 32)
                     .onChange(of: customQuality) { newValue in
                         DispatchQueue.main.async {
                             settings.customQuality = newValue
@@ -108,7 +111,7 @@ struct SettingsView: View {
             SectionHeader(icon: "film", title: "Frame Rate")
 
             Toggle("Reduce frame rate", isOn: $enableFramerateReduction)
-                .tint(DesignTokens.Candy.blue)
+                .toggleStyle(BrutalistToggleStyle())
                 .disabled(viewModel.isCompressing || !viewModel.isCurrentFileVideo)
                 .onChange(of: enableFramerateReduction) { newValue in
                     DispatchQueue.main.async {
@@ -124,7 +127,7 @@ struct SettingsView: View {
                 HStack {
                     Text("Target:")
                         .font(DesignTokens.Typography.caption)
-                        .foregroundStyle(Color.secondary)
+                        .foregroundStyle(DesignTokens.Colors.muted)
 
                     Picker("Framerate", selection: $selectedFramerate) {
                         ForEach(availableFramerates, id: \.self) { fps in
@@ -136,7 +139,11 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.menu)
-                    .tint(DesignTokens.Candy.blue)
+                    .tint(DesignTokens.Colors.ink)
+                    .font(DesignTokens.Typography.metadata)
+                    .padding(8)
+                    .background(DesignTokens.Colors.inset)
+                    .overlay(Rectangle().strokeBorder(DesignTokens.Colors.ink, lineWidth: DesignTokens.Geometry.border))
                     .disabled(viewModel.isCompressing)
                     .onChange(of: selectedFramerate) { newValue in
                         DispatchQueue.main.async {
@@ -148,7 +155,7 @@ struct SettingsView: View {
 
                 Text("Lower framerates reduce file size")
                     .font(DesignTokens.Typography.tiny)
-                    .foregroundStyle(Color.secondary)
+                    .foregroundStyle(DesignTokens.Colors.muted)
             }
         }
     }
@@ -179,14 +186,12 @@ struct SectionHeader: View {
     let title: String
 
     var body: some View {
-        HStack(spacing: DesignTokens.Spacing.xs) {
-            Image(systemName: icon)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(DesignTokens.Candy.lavender)
-            Text(title)
-                .font(DesignTokens.Typography.heading)
-                .foregroundStyle(DesignTokens.Candy.lavender)
+        HStack(spacing: 8) {
+            Image(systemName: icon).font(.system(size: 13, weight: .bold))
+                .accessibilityHidden(true)
+            BrutalistSectionLabel(title: title)
         }
+        .foregroundStyle(DesignTokens.Colors.ink)
     }
 }
 

@@ -31,7 +31,7 @@ struct ConversionSettingsView: View {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
                 SectionHeader(icon: "arrow.triangle.2.circlepath", title: "Conversion Type")
 
-                ToySegmentedPicker(
+                BrutalistChoicePicker(
                     selection: $conversionCategory,
                     options: availableCategories,
                     label: { $0.rawValue },
@@ -65,8 +65,10 @@ struct ConversionSettingsView: View {
             // Save Location
             outputFolderSection
         }
-        .padding()
+        .padding(DesignTokens.Spacing.outer)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .foregroundStyle(DesignTokens.Colors.ink)
+        .background(DesignTokens.Colors.canvas)
     }
 
     // MARK: - Image Conversion Controls
@@ -75,7 +77,7 @@ struct ConversionSettingsView: View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             SectionHeader(icon: "photo", title: "Output Format")
 
-            ToySegmentedPicker(
+            BrutalistChoicePicker(
                 selection: $imageOutputFormat,
                 options: ImageOutputFormat.allCases,
                 label: { $0.displayName },
@@ -95,16 +97,17 @@ struct ConversionSettingsView: View {
                             .font(DesignTokens.Typography.caption)
                         Spacer()
                         Text("\(Int(imageConversionQuality * 100))%")
-                            .font(Font.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundStyle(DesignTokens.Candy.blue)
+                            .font(DesignTokens.Typography.metadata)
+                            .foregroundStyle(DesignTokens.Colors.ink)
                     }
 
-                    ToySlider(
+                    BrutalistSlider(
                         value: $imageConversionQuality,
                         range: 0.1...1.0,
                         step: 0.05,
                         isDisabled: viewModel.isConverting
                     )
+                    .frame(height: 32)
                     .onChange(of: imageConversionQuality) { newValue in
                         DispatchQueue.main.async {
                             settings.imageConversionQuality = newValue
@@ -122,7 +125,7 @@ struct ConversionSettingsView: View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             SectionHeader(icon: "video", title: "Output Format")
 
-            ToySegmentedPicker(
+            BrutalistChoicePicker(
                 selection: $videoOutputFormat,
                 options: VideoOutputFormat.allCases,
                 label: { $0.displayName },
@@ -137,7 +140,7 @@ struct ConversionSettingsView: View {
 
             Text("Remuxes the video without re-encoding when possible")
                 .font(DesignTokens.Typography.tiny)
-                .foregroundStyle(Color.secondary)
+                .foregroundStyle(DesignTokens.Colors.muted)
         }
     }
 
@@ -147,20 +150,20 @@ struct ConversionSettingsView: View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             Image(systemName: "music.note")
                 .font(.system(size: 13))
-                .foregroundStyle(DesignTokens.Candy.lavender)
+                .foregroundStyle(DesignTokens.Colors.ink)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Extracts audio as M4A (AAC)")
                     .font(DesignTokens.Typography.caption)
-                    .foregroundStyle(DesignTokens.Candy.lavender)
+                    .foregroundStyle(DesignTokens.Colors.ink)
                 Text("High quality, smaller than MP3")
                     .font(DesignTokens.Typography.tiny)
-                    .foregroundStyle(DesignTokens.Candy.lavender.opacity(0.7))
+                    .foregroundStyle(DesignTokens.Colors.ink.opacity(0.7))
             }
             Spacer()
         }
         .padding(DesignTokens.Spacing.sm)
-        .background(DesignTokens.Candy.lavender.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small))
+        .background(DesignTokens.Colors.inset)
+        .overlay(Rectangle().strokeBorder(DesignTokens.Colors.ink, lineWidth: DesignTokens.Geometry.border))
     }
 
     // MARK: - Image to PDF Controls
@@ -171,36 +174,36 @@ struct ConversionSettingsView: View {
             HStack(spacing: DesignTokens.Spacing.sm) {
                 Image(systemName: "doc.richtext")
                     .font(.system(size: 13))
-                    .foregroundStyle(DesignTokens.Candy.coral)
+                    .foregroundStyle(DesignTokens.Colors.ink)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Combines images into a single PDF")
                         .font(DesignTokens.Typography.caption)
-                        .foregroundStyle(DesignTokens.Candy.coral)
+                        .foregroundStyle(DesignTokens.Colors.ink)
                     Text("Pages sized to A4, images centered")
                         .font(DesignTokens.Typography.tiny)
-                        .foregroundStyle(DesignTokens.Candy.coral.opacity(0.7))
+                        .foregroundStyle(DesignTokens.Colors.ink.opacity(0.7))
                 }
                 Spacer()
             }
             .padding(DesignTokens.Spacing.sm)
-            .background(DesignTokens.Candy.coral.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small))
+            .background(DesignTokens.Colors.inset)
+            .overlay(Rectangle().strokeBorder(DesignTokens.Colors.ink, lineWidth: DesignTokens.Geometry.border))
 
             // File list
             if !viewModel.droppedFileURLs.isEmpty {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                     Text("\(viewModel.droppedFileURLs.count) image\(viewModel.droppedFileURLs.count == 1 ? "" : "s") added")
                         .font(DesignTokens.Typography.tiny)
-                        .foregroundStyle(Color.secondary)
+                        .foregroundStyle(DesignTokens.Colors.muted)
 
                     ForEach(viewModel.droppedFileURLs, id: \.absoluteString) { url in
                         HStack(spacing: DesignTokens.Spacing.xs) {
                             Image(systemName: "photo")
                                 .font(.system(size: 10))
-                                .foregroundStyle(DesignTokens.Candy.blue)
+                                .foregroundStyle(DesignTokens.Colors.ink)
                             Text(url.lastPathComponent)
                                 .font(DesignTokens.Typography.tiny)
-                                .foregroundStyle(Color.primary)
+                                .foregroundStyle(DesignTokens.Colors.ink)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                             Spacer()
@@ -209,15 +212,15 @@ struct ConversionSettingsView: View {
                             }) {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 8, weight: .bold))
-                                    .foregroundStyle(DesignTokens.Candy.coral)
+                                    .foregroundStyle(DesignTokens.Colors.ink)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(BrutalistQuietButtonStyle())
                             .disabled(viewModel.isConverting)
                         }
                         .padding(.horizontal, DesignTokens.Spacing.sm)
                         .padding(.vertical, 4)
-                        .background(DesignTokens.Candy.blue.opacity(0.05))
-                        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small))
+                        .background(DesignTokens.Colors.inset)
+                        .overlay(Rectangle().strokeBorder(DesignTokens.Colors.ink, lineWidth: DesignTokens.Geometry.border))
                     }
                 }
             }
@@ -232,13 +235,12 @@ struct ConversionSettingsView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 30)
-                .foregroundStyle(DesignTokens.Candy.blue)
-                .background(DesignTokens.Candy.blue.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: DesignTokens.CornerRadius.small))
+                .foregroundStyle(DesignTokens.Colors.ink)
+                .background(DesignTokens.Colors.inset)
+                .overlay(Rectangle().strokeBorder(DesignTokens.Colors.ink, lineWidth: DesignTokens.Geometry.border))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(BrutalistQuietButtonStyle())
             .disabled(viewModel.isConverting)
-            .hoverScale(1.02)
         }
     }
 
@@ -248,24 +250,20 @@ struct ConversionSettingsView: View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             SectionHeader(icon: "lock.fill", title: "Password Protection")
 
-            SecureField("Password", text: $settings.pdfPassword)
-                .textFieldStyle(.roundedBorder)
-                .font(DesignTokens.Typography.body)
+            BrutalistSecureField(title: "Password", text: $settings.pdfPassword)
                 .disabled(viewModel.isConverting)
 
-            SecureField("Confirm Password", text: $settings.pdfPasswordConfirm)
-                .textFieldStyle(.roundedBorder)
-                .font(DesignTokens.Typography.body)
+            BrutalistSecureField(title: "Confirm Password", text: $settings.pdfPasswordConfirm)
                 .disabled(viewModel.isConverting)
 
             if !settings.pdfPassword.isEmpty && settings.pdfPassword != settings.pdfPasswordConfirm {
                 HStack(spacing: DesignTokens.Spacing.xs) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 10))
-                        .foregroundStyle(DesignTokens.Candy.coral)
+                        .foregroundStyle(DesignTokens.Colors.ink)
                     Text("Passwords do not match")
                         .font(DesignTokens.Typography.tiny)
-                        .foregroundStyle(DesignTokens.Candy.coral)
+                        .foregroundStyle(DesignTokens.Colors.ink)
                 }
             }
         }
