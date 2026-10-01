@@ -20,6 +20,7 @@ struct MainPopoverView: View {
     @State private var dropTargeted = false
     @State private var draggedImage: URL?
     @State private var displayedHeight: CGFloat = 400
+    @State private var showsCapabilities = false
 
     init(onPreferredHeightChange: @escaping (CGFloat) -> CGFloat = { $0 }) {
         self.onPreferredHeightChange = onPreferredHeightChange
@@ -39,6 +40,7 @@ struct MainPopoverView: View {
                 .background(heightReader(.header))
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    if showsCapabilities { capabilitiesPanel }
                     if let input = viewModel.selectedInput {
                         inputCard(input)
                         selectedDropArea
@@ -114,11 +116,46 @@ struct MainPopoverView: View {
                 .help("Choose a file or images to replace the selection")
                 .disabled(viewModel.isWorking)
             }
+            Button { showsCapabilities.toggle() } label: {
+                Image(systemName: "questionmark")
+                    .resizable().scaledToFit().frame(width: 10, height: 13)
+                    .frame(width: 32, height: 32)
+                    .background(showsCapabilities ? palette.selection : palette.inset, in: Rectangle())
+            }
+            .buttonStyle(BrutalistButtonStyle())
+            .accessibilityLabel("App capabilities")
+            .accessibilityValue(showsCapabilities ? "Expanded" : "Collapsed")
+            .help("What can SqueezeBar do?")
         }
         .padding(.horizontal, DesignTokens.Spacing.outer)
         .padding(.vertical, 16)
         .background(palette.surface)
         .overlay(alignment: .bottom) { Rectangle().fill(palette.outline).frame(height: DesignTokens.Geometry.border) }
+    }
+
+    private var capabilitiesPanel: some View {
+        BrutalistPanel {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("What can SqueezeBar do?")
+                    .font(DesignTokens.Typography.heading)
+                VStack(alignment: .leading, spacing: 8) {
+                    capability("Compress", description: "Reduce image, video, and PDF file sizes.")
+                    capability("Convert", description: "Change image or video formats.")
+                    capability("From video", description: "Create a GIF or save audio as M4A.")
+                    capability("Create PDFs", description: "Turn one or more images into a PDF.")
+                    capability("Protect PDFs", description: "Add a password.")
+                }
+                Text("Drop or choose files to see available actions. Everything runs locally on your Mac.")
+                    .font(DesignTokens.Typography.caption)
+                    .foregroundStyle(palette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func capability(_ title: String, description: String) -> some View {
+        (Text("\(title): ").font(DesignTokens.Typography.heading) + Text(description))
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var emptyState: some View {
