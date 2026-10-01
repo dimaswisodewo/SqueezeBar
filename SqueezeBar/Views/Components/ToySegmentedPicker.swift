@@ -61,16 +61,10 @@ struct ToySegmentedPicker<T: Hashable & Identifiable>: View {
 
 #Preview {
     struct PickerPreview: View {
-        @State private var mode = CompressionMode.quality
         @State private var quality = CompressionQuality.medium
 
         var body: some View {
             VStack(spacing: 20) {
-                ToySegmentedPicker(
-                    selection: $mode,
-                    options: CompressionMode.allCases.map { $0 },
-                    label: { $0.rawValue }
-                )
                 ToySegmentedPicker(
                     selection: $quality,
                     options: CompressionQuality.allCases.map { $0 },

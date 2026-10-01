@@ -372,7 +372,7 @@ class MainViewModel: ObservableObject {
         isCompressing = true
         errorMessage = nil
         lastResult = nil
-        statusMessage = getCompressionMessage(for: settings.compressionMode)
+        statusMessage = "Compressing with quality settings..."
 
         let inputAccessing = inputURL.startAccessingSecurityScopedResource()
 
@@ -383,18 +383,17 @@ class MainViewModel: ObservableObject {
         }
 
         do {
-            let quality = try calculateQuality(settings: settings, inputURL: inputURL)
             let targetFramerate = settings.effectiveFramerate
 
             let result = try await compressionManager.compress(
                 inputURL: inputURL,
                 outputFolder: outputFolder,
-                quality: quality,
+                quality: settings.effectiveQuality,
                 targetFramerate: targetFramerate
             )
 
             lastResult = result
-            statusMessage = formatSuccessMessage(result: result, mode: settings.compressionMode)
+            statusMessage = formatSuccessMessage(result: result)
             // Unblock immediately so the user can start another compression
             isCompressing = false
 
@@ -405,137 +404,10 @@ class MainViewModel: ObservableObject {
         }
     }
 
-    private func getCompressionMessage(for mode: CompressionMode) -> String {
-        switch mode {
-        case .quality:
-            return "Compressing with quality settings..."
-        case .targetSize:
-            return "Compressing to target size..."
-        case .percentage:
-            return "Reducing file size..."
-        }
-    }
-
-    private func calculateQuality(settings: AppSettings, inputURL: URL) throws -> Double {
-        switch settings.compressionMode {
-        case .quality:
-            return settings.effectiveQuality
-
-        case .targetSize:
-            // Estimate quality needed to reach target size
-            guard let resourceValues = try? inputURL.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey]),
-                  let fileSize = resourceValues.fileSize,
-                  let contentType = resourceValues.contentType else {
-                return 0.5
-            }
-
-            let targetBytes = Double(settings.targetSizeMB * 1024 * 1024)
-            let originalBytes = Double(fileSize)
-
-            // If target is larger than or close to original, use high quality
-            if targetBytes >= originalBytes * 0.95 {
-                return 0.95
-            }
-
-            let targetRatio = targetBytes / originalBytes
-
-            // Calculate quality based on file type
-            // Different file types have different quality-to-compression characteristics
-            let quality: Double
-
-            if contentType.conforms(to: .pdf) {
-                // PDF compression with Ghostscript uses discrete settings:
-                // /prepress (q>=0.8), /ebook (0.5<=q<0.8), /screen (q<0.5)
-                // Map target ratios to these settings more intelligently
-                if targetRatio > 0.7 {
-                    quality = 0.85  // /prepress
-                } else if targetRatio > 0.4 {
-                    quality = 0.65  // /ebook
-                } else {
-                    // For /screen, interpolate within the lower range
-                    quality = max(0.1, 0.4 + (targetRatio - 0.1) * 0.3)
-                }
-            } else if contentType.conforms(to: .movie) || contentType.conforms(to: .video) {
-                // Video compression uses AVFoundation presets with discrete quality levels
-                // Map to preset boundaries: Low (<0.4), Medium (0.4-0.7), High (>=0.7)
-                if targetRatio > 0.75 {
-                    quality = 0.85  // High quality preset
-                } else if targetRatio > 0.5 {
-                    quality = 0.55  // Medium quality preset
-                } else {
-                    quality = 0.25  // Low quality preset
-                }
-            } else {
-                // Image compression (JPEG, PNG, HEIC, etc.)
-                // Quality-to-size relationship is roughly logarithmic
-                // Empirical formula: size ≈ 0.15 + 0.85 * quality^1.8
-                // Solving for quality: quality ≈ ((size - 0.15) / 0.85)^(1/1.8)
-
-                let adjustedRatio = max(0.15, targetRatio)  // Account for baseline size
-                let normalizedRatio = (adjustedRatio - 0.15) / 0.85
-                quality = pow(normalizedRatio, 1.0 / 1.8)
-            }
-
-            // Clamp between practical bounds
-            return min(max(quality, 0.1), 0.95)
-
-        case .percentage:
-            // Estimate quality needed to achieve percentage reduction
-            guard let resourceValues = try? inputURL.resourceValues(forKeys: [.contentTypeKey]),
-                  let contentType = resourceValues.contentType else {
-                return 0.5
-            }
-
-            let reductionFactor = settings.compressionPercentage / 100.0
-            let targetRatio = 1.0 - reductionFactor  // Target size as ratio of original
-
-            // Use inverse of compression models
-            let quality: Double
-
-            if contentType.conforms(to: .pdf) {
-                // Map target ratio to Ghostscript settings
-                if targetRatio > 0.7 {
-                    quality = 0.85
-                } else if targetRatio > 0.4 {
-                    quality = 0.65
-                } else {
-                    quality = max(0.1, 0.4 + (targetRatio - 0.1) * 0.3)
-                }
-            } else if contentType.conforms(to: .movie) || contentType.conforms(to: .video) {
-                // Map to video preset boundaries
-                if targetRatio > 0.75 {
-                    quality = 0.85
-                } else if targetRatio > 0.5 {
-                    quality = 0.55
-                } else {
-                    quality = 0.25
-                }
-            } else {
-                // Image: Use inverse logarithmic formula
-                // Given target ratio, solve: ratio = 0.15 + 0.85 * quality^1.8
-                let adjustedRatio = max(0.15, targetRatio)
-                let normalizedRatio = (adjustedRatio - 0.15) / 0.85
-                quality = pow(normalizedRatio, 1.0 / 1.8)
-            }
-
-            // Clamp between practical bounds
-            return min(max(quality, 0.1), 0.95)
-        }
-    }
-
-    private func formatSuccessMessage(result: CompressionResult, mode: CompressionMode) -> String {
+    private func formatSuccessMessage(result: CompressionResult) -> String {
         let saved = formatBytes(result.savedBytes)
         let percent = String(format: "%.0f", result.savedPercentage)
-
-        switch mode {
-        case .quality:
-            return "✓ Saved \(saved) (\(percent)% smaller)"
-        case .targetSize:
-            let finalSize = formatBytes(result.compressedSize)
-            return "✓ Compressed to \(finalSize) • Saved \(percent)%"
-        case .percentage:
-            return "✓ Reduced by \(percent)% • Saved \(saved)"
-        }
+        return "✓ Saved \(saved) (\(percent)% smaller)"
     }
 
     private func formatErrorMessage(_ error: Error) -> String {

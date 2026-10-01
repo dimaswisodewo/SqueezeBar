@@ -13,53 +13,23 @@ struct SettingsView: View {
     @ObservedObject private var viewModel = MainViewModel.shared
 
     // Local state to prevent publishing changes during view updates
-    @State private var compressionMode: CompressionMode
     @State private var compressionQuality: CompressionQuality
     @State private var customQuality: Double
-    @State private var targetSizeMB: Double
-    @State private var compressionPercentage: Double
     @State private var enableFramerateReduction: Bool
     @State private var selectedFramerate: Double
 
     init(settings: AppSettings) {
         self.settings = settings
-        _compressionMode = State(initialValue: settings.compressionMode)
         _compressionQuality = State(initialValue: settings.compressionQuality)
         _customQuality = State(initialValue: settings.customQuality)
-        _targetSizeMB = State(initialValue: settings.targetSizeMB)
-        _compressionPercentage = State(initialValue: settings.compressionPercentage)
         _enableFramerateReduction = State(initialValue: settings.enableFramerateReduction)
         _selectedFramerate = State(initialValue: settings.targetFramerate ?? 30.0)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-            // Compression Mode Selector
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-                SectionHeader(icon: "slider.horizontal.3", title: "Compression Method")
-
-                ToySegmentedPicker(
-                    selection: $compressionMode,
-                    options: CompressionMode.allCases.map { $0 },
-                    label: { $0.rawValue },
-                    isDisabled: viewModel.isCompressing
-                )
-                .onChange(of: compressionMode) { newValue in
-                    DispatchQueue.main.async {
-                        settings.compressionMode = newValue
-                    }
-                }
-            }
-
-            // Mode-specific controls
-            switch compressionMode {
-            case .quality:
-                qualityControls
-            case .targetSize:
-                targetSizeControls
-            case .percentage:
-                percentageControls
-            }
+            SectionHeader(icon: "slider.horizontal.3", title: "Quality")
+            qualityControls
 
             Divider()
                 .padding(.vertical, DesignTokens.Spacing.xs)
@@ -128,68 +98,6 @@ struct SettingsView: View {
                     }
                 }
             }
-        }
-    }
-
-    // MARK: - Target Size Controls
-
-    private var targetSizeControls: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            HStack {
-                Text("Maximum File Size")
-                    .font(DesignTokens.Typography.caption)
-                Spacer()
-                Text("\(String(format: "%.1f", targetSizeMB)) MB")
-                    .font(Font.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(DesignTokens.Candy.blue)
-            }
-
-            ToySlider(
-                value: $targetSizeMB,
-                range: 0.5...50.0,
-                step: 0.5,
-                isDisabled: viewModel.isCompressing
-            )
-            .onChange(of: targetSizeMB) { newValue in
-                DispatchQueue.main.async {
-                    settings.targetSizeMB = newValue
-                }
-            }
-
-            Text("App will attempt to compress to this size or smaller")
-                .font(DesignTokens.Typography.tiny)
-                .foregroundStyle(Color.secondary)
-        }
-    }
-
-    // MARK: - Percentage Controls
-
-    private var percentageControls: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            HStack {
-                Text("Reduce File Size By")
-                    .font(DesignTokens.Typography.caption)
-                Spacer()
-                Text("\(Int(compressionPercentage))%")
-                    .font(Font.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(DesignTokens.Candy.blue)
-            }
-
-            ToySlider(
-                value: $compressionPercentage,
-                range: 10...90,
-                step: 5,
-                isDisabled: viewModel.isCompressing
-            )
-            .onChange(of: compressionPercentage) { newValue in
-                DispatchQueue.main.async {
-                    settings.compressionPercentage = newValue
-                }
-            }
-
-            Text("Original size will be reduced by this percentage")
-                .font(DesignTokens.Typography.tiny)
-                .foregroundStyle(Color.secondary)
         }
     }
 

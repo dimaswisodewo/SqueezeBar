@@ -7,25 +7,6 @@
 
 import Foundation
 
-enum CompressionMode: String, CaseIterable, Identifiable {
-    case quality = "Quality"
-    case targetSize = "Target Size"
-    case percentage = "Percentage"
-
-    var id: String { rawValue }
-
-    var description: String {
-        switch self {
-        case .quality:
-            return "Control output quality"
-        case .targetSize:
-            return "Set maximum file size"
-        case .percentage:
-            return "Reduce by percentage"
-        }
-    }
-}
-
 enum CompressionQuality: String, CaseIterable, Identifiable {
     case maximum = "Maximum"
     case high = "High"

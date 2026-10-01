@@ -237,24 +237,12 @@ struct MainPopoverView: View {
         VStack(alignment: .leading, spacing: 12) {
             switch viewModel.selectedAction {
             case .compress:
-                Picker("Compression method", selection: $settings.compressionMode) {
-                    ForEach(CompressionMode.allCases) { Text($0.rawValue).tag($0) }
+                Picker("Quality", selection: $settings.compressionQuality) {
+                    ForEach(CompressionQuality.allCases) { Text($0.rawValue).tag($0) }
                 }
-                switch settings.compressionMode {
-                case .quality:
-                    Picker("Quality", selection: $settings.compressionQuality) {
-                        ForEach(CompressionQuality.allCases) { Text($0.rawValue).tag($0) }
-                    }
-                    if settings.compressionQuality == .custom {
-                        valueRow("Custom quality", "\(Int(settings.customQuality * 100))%")
-                        Slider(value: $settings.customQuality, in: 0.1...1, step: 0.05)
-                    }
-                case .targetSize:
-                    valueRow("Target size", String(format: "%.1f MB", settings.targetSizeMB))
-                    Slider(value: $settings.targetSizeMB, in: 0.5...50, step: 0.5)
-                case .percentage:
-                    valueRow("Reduce by", "\(Int(settings.compressionPercentage))%")
-                    Slider(value: $settings.compressionPercentage, in: 10...90, step: 5)
+                if settings.compressionQuality == .custom {
+                    valueRow("Custom quality", "\(Int(settings.customQuality * 100))%")
+                    Slider(value: $settings.customQuality, in: 0.1...1, step: 0.05)
                 }
                 if viewModel.isCurrentFileVideo {
                     Toggle("Reduce frame rate", isOn: $settings.enableFramerateReduction)

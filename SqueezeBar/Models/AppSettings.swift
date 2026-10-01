@@ -27,11 +27,8 @@ class AppSettings: ObservableObject {
         }
     }
 
-    @Published var compressionMode: CompressionMode = .quality
     @Published var compressionQuality: CompressionQuality = .medium
     @Published var customQuality: Double = 0.6 // 0.0 to 1.0
-    @Published var targetSizeMB: Double = 5.0 // Target size in MB
-    @Published var compressionPercentage: Double = 50.0 // Reduce by X%
 
     // MARK: - Framerate Settings
     @Published var enableFramerateReduction: Bool = false
@@ -39,7 +36,7 @@ class AppSettings: ObservableObject {
 
     /// Get the effective quality factor based on current settings
     var effectiveQuality: Double {
-        if compressionMode == .quality && compressionQuality == .custom {
+        if compressionQuality == .custom {
             return customQuality
         }
         return compressionQuality.qualityFactor
