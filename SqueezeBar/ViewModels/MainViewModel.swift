@@ -464,9 +464,17 @@ class MainViewModel: ObservableObject {
     }
 
     private func formatSuccessMessage(result: CompressionResult) -> String {
-        let saved = formatBytes(result.savedBytes)
-        let percent = String(format: "%.0f", result.savedPercentage)
-        return "✓ Saved \(saved) (\(percent)% smaller)"
+        if result.savedBytes > 0 {
+            let saved = formatBytes(result.savedBytes)
+            let percent = String(format: "%.0f", result.savedPercentage)
+            return "✓ Saved \(saved) (\(percent)% smaller)"
+        } else if result.savedBytes < 0 {
+            let increase = formatBytes(-result.savedBytes)
+            let percent = String(format: "%.0f", -result.savedPercentage)
+            return "✓ Output is \(increase) larger (\(percent)% larger)"
+        } else {
+            return "✓ Output is the same size"
+        }
     }
 
     private func formatErrorMessage(_ error: Error) -> String {
