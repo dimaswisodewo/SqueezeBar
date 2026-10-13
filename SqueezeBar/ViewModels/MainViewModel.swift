@@ -217,8 +217,9 @@ class MainViewModel: ObservableObject {
         ]
         panel.allowsOtherFileTypes = true
 
-        if panel.runModal() == .OK {
-            selectFiles(panel.urls)
+        FilePickerPresenter.present(panel) { [weak self] response in
+            guard response == .OK else { return }
+            self?.selectFiles(panel.urls)
         }
     }
 

@@ -62,7 +62,8 @@ struct OutputFolderSectionView: View {
         panel.canCreateDirectories = true
         panel.message = panelMessage
         panel.prompt = "Choose"
-        if panel.runModal() == .OK {
+        FilePickerPresenter.present(panel) { response in
+            guard response == .OK else { return }
             let selectedURL = panel.url
             DispatchQueue.main.async { settings.outputFolderURL = selectedURL }
         }

@@ -291,7 +291,8 @@ struct ConversionSettingsView: View {
         panel.prompt = "Add"
         panel.allowedContentTypes = [.image, .png, .jpeg, .heic, .bmp, .tiff]
 
-        if panel.runModal() == .OK {
+        FilePickerPresenter.present(panel) { response in
+            guard response == .OK else { return }
             let urls = panel.urls
             DispatchQueue.main.async {
                 for url in urls {

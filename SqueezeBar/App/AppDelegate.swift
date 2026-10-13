@@ -11,7 +11,7 @@ import Combine
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
-    private var popover: NSPopover!
+    private var panelController: StatusPanelController!
     private var dropOverlay: StatusItemDropOverlay?
     private var workObservation: AnyCancellable?
     private var idleImage: NSImage?
@@ -31,7 +31,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 button.image = image
                 idleImage = image
             }
-            button.action = #selector(togglePopover)
+            button.action = #selector(togglePanel)
             button.target = self
 
             // Set up drag-and-drop overlay so users can drag files onto the menu bar icon
@@ -42,21 +42,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             dropOverlay = overlay
         }
 
-        // Create popover
-        popover = NSPopover()
-        popover.contentSize = NSSize(width: 420, height: 400)
-        popover.behavior = .transient
-        popover.animates = false
-        popover.contentViewController = NSHostingController(rootView: MainPopoverView { [weak self] preferredHeight in
-            guard let self else { return preferredHeight }
-            let screenHeight = self.statusItem.button?.window?.screen?.visibleFrame.height
-                ?? NSScreen.main?.visibleFrame.height ?? 850
-            let height = min(max(300, preferredHeight), max(300, screenHeight - 40))
-            if abs(self.popover.contentSize.height - height) > 1 {
-                self.popover.contentSize = NSSize(width: 420, height: height)
-            }
-            return height
-        })
+        panelController = StatusPanelController(statusItem: statusItem)
         workObservation = Publishers.CombineLatest(
             MainViewModel.shared.$isCompressing, MainViewModel.shared.$isConverting
         ).receive(on: RunLoop.main).sink { [weak self] compressing, converting in
@@ -72,36 +58,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc func togglePopover() {
-        if popover.isShown {
-            popover.performClose(nil)
-        } else {
-            showPopover()
-        }
+    @objc func togglePanel() {
+        panelController.toggle()
     }
 
-    private func showPopover() {
-        guard let button = statusItem.button else { return }
+    private func showPanel() {
+        panelController.show()
+    }
 
-        NSApp.activate(ignoringOtherApps: true)
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-
-        // Ensure the popover's window becomes key (with slight delay for window creation)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            guard let popoverWindow = self?.popover.contentViewController?.view.window else { return }
-
-            // Only call makeKey if it's not a status bar window
-            let windowClassName = NSStringFromClass(type(of: popoverWindow))
-            if !windowClassName.contains("StatusBar") {
-                popoverWindow.makeKey()
-            }
-        }
+    func applicationWillTerminate(_ notification: Notification) {
+        panelController.tearDown()
     }
 
     // Called when app icon is clicked in dock
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !popover.isShown {
-            showPopover()
+        if !panelController.isVisible {
+            showPanel()
         }
         return true
     }
@@ -110,7 +82,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ sender: NSApplication, open urls: [URL]) {
         guard !urls.isEmpty else { return }
 
-        showPopover()
+        showPanel()
 
         MainViewModel.shared.selectFiles(urls)
     }
@@ -119,7 +91,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ sender: NSApplication, openFile filename: String) -> Bool {
         let url = URL(fileURLWithPath: filename)
 
-        showPopover()
+        showPanel()
         MainViewModel.shared.handleFileOpen(url: url)
         return true
     }
@@ -149,8 +121,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: StatusItemDropDelegate {
 
     func dropOverlayDraggingEntered() {
-        if !popover.isShown {
-            showPopover()
+        if !panelController.isVisible {
+            showPanel()
         }
         MainViewModel.shared.isDragging = true
     }
@@ -161,8 +133,8 @@ extension AppDelegate: StatusItemDropDelegate {
 
     func dropOverlayPerformDrop(fileURLs: [URL]) {
         MainViewModel.shared.isDragging = false
-        if !popover.isShown {
-            showPopover()
+        if !panelController.isVisible {
+            showPanel()
         }
         MainViewModel.shared.selectFiles(fileURLs)
     }
